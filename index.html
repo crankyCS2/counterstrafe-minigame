@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS2 Counter-Strafe Trainer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg0:#080a0c; --bg1:#0d1014; --bg2:#111518; --bg3:#161b1f;
+      --border:#1e2428; --border2:#252b30;
+      --text-dim:#3a4248; --text-mid:#6a7880; --text:#b8c4ca; --text-hi:#dce8ee;
+      --accent:#2a7fff; --accent2:#1a5fcc;
+      --green:#22c55e; --orange:#f97316; --red:#ef4444; --yellow:#eab308;
+    }
+    html, body { height:100%; overflow:hidden; background:var(--bg0);
+      color:var(--text); font-family:'JetBrains Mono','Consolas',monospace; }
+    #app { display:flex; height:100vh; }
+
+    /* ── Arena ── */
+    #arena { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
+    #header {
+      height:34px; background:var(--bg1); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; padding:0 16px; gap:16px; flex-shrink:0;
+    }
+    .hdr-dot { width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+    .hdr-accent { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); }
+    .hdr-tag    { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+    .hdr-sep    { color:var(--border2); }
+    #canvas { flex:1; display:block; cursor:crosshair; }
+
+    /* ── Velocity bar ── */
+    #velbar-wrap { height:3px; background:var(--bg1); position:relative; flex-shrink:0; }
+    #velbar-left,#velbar-right { position:absolute; top:0; height:100%; width:0%; transition:width 0ms; }
+    #velbar-left  { right:50%; background:var(--accent); }
+    #velbar-right { left:50%;  background:var(--accent); }
+    .vb-thresh { position:absolute; top:0; height:100%; width:1px; background:var(--green); opacity:.55; }
+    #vb-center { position:absolute; top:-1px; height:5px; width:1px; background:var(--border2); left:calc(50% - .5px); }
+
+    /* ── WASD display ── */
+    #wasd {
+      position:absolute; bottom:22px; left:50%; transform:translateX(-50%);
+      display:grid; grid-template-columns:repeat(3,36px); grid-template-rows:repeat(2,34px);
+      gap:3px; grid-template-areas:". w ." "a s d";
+    }
+    .key {
+      display:flex; align-items:center; justify-content:center;
+      border:1px solid var(--border); border-radius:4px;
+      background:var(--bg2); color:var(--text-dim);
+      font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.5px;
+      user-select:none; pointer-events:none;
+      transition:background 30ms,color 30ms,border-color 30ms,box-shadow 30ms;
+    }
+    .key[data-k="W"]{grid-area:w} .key[data-k="A"]{grid-area:a}
+    .key[data-k="S"]{grid-area:s} .key[data-k="D"]{grid-area:d}
+    .key.on { background:#0f1f3a; border-color:var(--accent2); color:#6fb3ff; box-shadow:0 0 10px rgba(42,127,255,.25); }
+
+    /* ── Sidebar ── */
+    #sidebar { width:270px; background:var(--bg1); border-left:1px solid var(--border);
+      display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+    .sb-hdr { height:34px; display:flex; align-items:center; padding:0 14px;
+      border-bottom:1px solid var(--border); font-size:9px; letter-spacing:2.5px;
+      text-transform:uppercase; color:var(--text-dim); gap:8px; flex-shrink:0; }
+
+    /* 6-cell live grid */
+    #live-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px;
+      background:var(--border); border-bottom:1px solid var(--border); flex-shrink:0; }
+    .lc { background:var(--bg1); padding:8px 10px; }
+    .lc-label { font-size:7px; letter-spacing:2px; text-transform:uppercase;
+      color:var(--text-dim); margin-bottom:3px; }
+    .lc-val { font-size:15px; font-weight:700; color:var(--text-hi); line-height:1; }
+    .lc-unit { font-size:9px; font-weight:400; color:var(--text-dim); }
+
+    /* Benchmark strip */
+    #bench-strip {
+      display:flex; align-items:center; padding:6px 14px; gap:12px;
+      border-bottom:1px solid var(--border); flex-shrink:0; font-size:9px;
+      color:var(--text-dim); letter-spacing:1px;
+    }
+    #bench-strip span { color:var(--text-mid); }
+    #bench-strip b    { color:var(--text); font-weight:600; }
+
+    /* Averages */
+    #avg-section { padding:9px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .avg-row { display:flex; justify-content:space-between; align-items:center;
+      padding:3px 0; font-size:10px; color:var(--text-mid); border-bottom:1px solid var(--bg3); }
+    .avg-row:last-child { border-bottom:none; }
+    .avg-val { color:var(--text); font-weight:600; }
+
+    /* History */
+    #hist-hdr { padding:7px 14px 5px; font-size:7.5px; letter-spacing:2px;
+      text-transform:uppercase; color:var(--text-dim); flex-shrink:0; }
+    #hist-list { flex:1; overflow-y:auto; padding:0 6px 8px; }
+    #hist-list::-webkit-scrollbar { width:3px; }
+    #hist-list::-webkit-scrollbar-thumb { background:var(--bg3); border-radius:2px; }
+    .h-row { display:grid; grid-template-columns:22px 74px 1fr; align-items:start;
+      gap:5px; padding:5px 7px; border-radius:3px; margin-bottom:2px;
+      background:var(--bg2); animation:rowIn 150ms ease; }
+    .h-row.no-attempt { opacity:.3; }
+    @keyframes rowIn { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:translateX(0)} }
+    .h-num { color:var(--text-dim); font-size:9px; padding-top:1px; }
+    .h-res { font-weight:700; font-size:10px; }
+    .h-det { color:var(--text-mid); font-size:9px; display:flex; flex-direction:column; gap:1px; }
+    .h-decel-bar { height:2px; border-radius:1px; margin-top:3px; max-width:90px; }
+
+    /* Instructions */
+    #instructions { position:absolute; top:50%; left:50%;
+      transform:translate(-50%,calc(-50% + 90px)); text-align:center; pointer-events:none; }
+    #instructions p { font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+      color:var(--text-dim); line-height:2.3; }
+    #instructions span { color:var(--text-mid); }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="arena">
+    <div id="header">
+      <div class="hdr-dot"></div>
+      <div class="hdr-accent">CS2 Counter-Strafe Trainer</div>
+      <div class="hdr-sep">|</div>
+      <div class="hdr-tag" id="hdr-phase">IDLE</div>
+      <div class="hdr-sep" style="margin-left:auto">|</div>
+      <div class="hdr-tag" id="fps-counter">— fps</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div id="velbar-wrap">
+      <div id="velbar-left"></div>
+      <div id="velbar-right"></div>
+      <!-- threshold markers injected by JS once weapon config is known -->
+      <div id="vb-center"></div>
+    </div>
+
+    <div id="wasd">
+      <div class="key" data-k="W">W</div>
+      <div class="key" data-k="A">A</div>
+      <div class="key" data-k="S">S</div>
+      <div class="key" data-k="D">D</div>
+    </div>
+
+    <div id="instructions">
+      <p><span>A / D  or  ← / →</span> — strafe</p>
+      <p><span>LEFT CLICK  or  SPACE</span> — shoot</p>
+      <p>Strafe → counter-strafe → shoot → repeat</p>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="sb-hdr">
+      <div style="width:4px;height:4px;background:var(--accent);border-radius:1px;"></div>
+      Live Data
+    </div>
+
+    <!-- 6-cell live grid: Speed | Phase | Total Decel / CS Time | Gap | Overlap | Last Shot -->
+    <div id="live-grid">
+      <div class="lc">
+        <div class="lc-label">Speed</div>
+        <div class="lc-val"><span id="lv-speed">0</span><span class="lc-unit"> u/s</span></div>
+      </div>
+      <div class="lc">
+        <div class="lc-label">Phase</div>
+        <div class="lc-val" id="lv-phase" style="font-size:10px;padding-top:3px;">IDLE</div>
+      </div>
+      <div class="lc">
+        <div class="lc-label">Last Shot</div>
+        <div class="lc-val" id="lv-result" style="font-size:10px;padding-top:3px;">—</div>
+      </div>
+      <div class="lc" style="grid-column:1/3">
+        <div class="lc-label">Total Decel Time</div>
+        <div class="lc-val"><span id="lv-total">—</span><span class="lc-unit" id="lv-total-u"></span></div>
+      </div>
+      <div class="lc">
+        <div class="lc-label">CS Time</div>
+        <div class="lc-val" style="font-size:13px;padding-top:1px;"><span id="lv-cs">—</span><span class="lc-unit" id="lv-csu"></span></div>
+      </div>
+    </div>
+
+    <!-- Weapon benchmarks -->
+    <div id="bench-strip">
+      <span id="bench-weapon">AK-47</span>
+      <span>CS ideal <b id="bench-cs">—</b></span>
+      <span>Coast <b id="bench-coast">—</b></span>
+    </div>
+
+    <div id="avg-section">
+      <div class="avg-row"><span>Avg total decel</span>  <span class="avg-val" id="av-tot-d">—</span></div>
+      <div class="avg-row"><span>Avg CS duration</span>  <span class="avg-val" id="av-cs">—</span></div>
+      <div class="avg-row"><span>Avg speed at shot</span><span class="avg-val" id="av-spd">—</span></div>
+      <div class="avg-row"><span>Avg gap time</span>     <span class="avg-val" id="av-gap">—</span></div>
+      <div class="avg-row"><span>Avg overlap time</span> <span class="avg-val" id="av-ovl">—</span></div>
+      <div class="avg-row"><span>Success rate</span>     <span class="avg-val" id="av-rate">—</span></div>
+      <div class="avg-row"><span>Total shots</span>      <span class="avg-val" id="av-tot">0</span></div>
+    </div>
+
+    <div id="hist-hdr">Shot History</div>
+    <div id="hist-list"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+//  SOURCE ENGINE PHYSICS CONSTANTS
+//  From formula doc (sv_ cvars, community/Valve-confirmed):
+// ═══════════════════════════════════════════════════════════════════
+const SV = {
+  friction:      5.2,   // sv_friction
+  stopspeed:     80,    // sv_stopspeed
+  accelerate:    5.5,   // sv_accelerate
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  WEAPON CONFIG
+//  CS2Kitchen confirmed accurate_thresh = 73 u/s for ALL weapons.
+//  maxSpeed is weapon-specific. Default: AK-47.
+// ═══════════════════════════════════════════════════════════════════
+const WEAPONS = {
+  ak47:  { name:'AK-47',   maxSpeed: 221 },
+  knife: { name:'Knife',   maxSpeed: 250 },
+  awp:   { name:'AWP',     maxSpeed: 200 },
+  m4a4:  { name:'M4A4',    maxSpeed: 221 },
+};
+let WPN = WEAPONS.ak47;
+const ACCURATE_THRESH = 73;  // u/s — same for all weapons (CS2Kitchen verified)
+const MIN_ATTEMPT_SPEED = 85; // u/s — minimum peak to count as a real attempt
+
+// ── Compute benchmark times analytically from Source engine formulas ──
+// coastMs: time from maxSpeed to ACCURATE_THRESH with friction only
+//   Above sv_stopspeed: exponential decay  v(t) = v0 × e^(-friction × t)
+//   Below sv_stopspeed: linear             v(t) = v0 - friction × stopspeed × t
+function computeCoastMs(maxSpeed) {
+  let t = 0;
+  let v = maxSpeed;
+  // Exponential phase down to stopspeed (or accurate_thresh if lower)
+  const v1 = Math.max(SV.stopspeed, ACCURATE_THRESH);
+  if (v > v1) {
+    t += Math.log(v / v1) / SV.friction;
+    v = v1;
+  }
+  // Linear phase (control = stopspeed) down to accurate_thresh
+  if (v > ACCURATE_THRESH) {
+    t += (v - ACCURATE_THRESH) / (SV.friction * SV.stopspeed);
+  }
+  return t * 1000; // ms
+}
+
+// csMs: time from maxSpeed to ACCURATE_THRESH with counter-strafe
+//   Combined ODE: dv/dt = -(friction × v + accelerate × maxSpeed)
+//   Solution:  v(t) = (v0 + A) × e^(-friction × t) - A   where A = accelerate × maxSpeed / friction
+//   Note: strictly valid above stopspeed. Below stopspeed the friction term changes,
+//   but the counter-strafe window is almost entirely above it, so the error is negligible.
+function computeCsMs(maxSpeed) {
+  const A  = SV.accelerate * maxSpeed / SV.friction;   // ≈ 233.9 for AK
+  // v(t) = (maxSpeed + A) × e^(-friction × t) - A = ACCURATE_THRESH
+  // t = -ln((ACCURATE_THRESH + A) / (maxSpeed + A)) / friction
+  const t = -Math.log((ACCURATE_THRESH + A) / (maxSpeed + A)) / SV.friction;
+  return t * 1000; // ms
+}
+
+// Precompute for current weapon
+let COAST_MS, CS_MS;
+function recomputeBenchmarks() {
+  COAST_MS = computeCoastMs(WPN.maxSpeed);
+  CS_MS    = computeCsMs(WPN.maxSpeed);
+  document.getElementById('bench-weapon').textContent = WPN.name;
+  document.getElementById('bench-cs').textContent     = Math.round(CS_MS)  + 'ms';
+  document.getElementById('bench-coast').textContent  = Math.round(COAST_MS) + 'ms';
+  // Reposition threshold markers on the velocity bar
+  const pct = (ACCURATE_THRESH / WPN.maxSpeed) * 50;
+  const l = document.getElementById('vbt-l');
+  const r = document.getElementById('vbt-r');
+  if (l) l.style.right = `calc(50% + ${pct}%)`;
+  if (r) r.style.left  = `calc(50% + ${pct}%)`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PHASE STATE MACHINE  (see previous version for full transition table)
+// ═══════════════════════════════════════════════════════════════════
+const PHASE = { STRAFING:'STRAFING', GAP:'GAP', OVERLAP:'OVERLAP', COUNTER:'COUNTER', STOPPED:'STOPPED' };
+
+function makeAttempt(dir, now) {
+  return { dir, phase:PHASE.STRAFING, phaseStart:now, peakSpeed:0,
+           decelStartAt:null, overlapMs:0, gapMs:0, counterMs:0 };
+}
+
+function flushPhase(att, now) {
+  if (!att) return;
+  const e = now - att.phaseStart;
+  if (e <= 0) return;
+  if (att.phase === PHASE.GAP)     att.gapMs     += e;
+  if (att.phase === PHASE.OVERLAP) att.overlapMs += e;
+  if (att.phase === PHASE.COUNTER) att.counterMs += e;
+}
+
+function setPhase(att, phase, now) {
+  flushPhase(att, now);
+  att.phase      = phase;
+  att.phaseStart = now;
+  if (att.decelStartAt === null &&
+      (phase === PHASE.GAP || phase === PHASE.OVERLAP || phase === PHASE.COUNTER)) {
+    att.decelStartAt = now;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let velocity  = 0;
+let visualPos = 0;       // smoothed px offset from canvas centre
+const keys    = { a:false, d:false };
+let attempt   = null;
+let feedback  = null;    // { label, color, startMs }
+const history = [];
+
+// ═══════════════════════════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════════════════════════
+const A_KEYS = new Set(['a','arrowleft']);
+const D_KEYS = new Set(['d','arrowright']);
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  const isA = A_KEYS.has(k), isD = D_KEYS.has(k);
+  if (!isA && !isD) return;
+  e.preventDefault();
+  if ((isA && keys.a) || (isD && keys.d)) return; // guard double-fire
+
+  if (isA) keys.a = true;
+  if (isD) keys.d = true;
+  const now = performance.now();
+  const pressedDir = isD ? 1 : -1;
+
+  if (!attempt) {
+    attempt = makeAttempt(pressedDir, now);
+    refreshKeyUI(); return;
+  }
+
+  switch (attempt.phase) {
+    case PHASE.STRAFING:
+      if (pressedDir === -attempt.dir) setPhase(attempt, PHASE.OVERLAP, now);
+      break;
+    case PHASE.GAP:
+      if (pressedDir === -attempt.dir)  setPhase(attempt, PHASE.COUNTER, now);
+      else { flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now); }
+      break;
+    case PHASE.OVERLAP: break; // both already held
+    case PHASE.COUNTER:
+      if (pressedDir === attempt.dir) { flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now); }
+      break;
+    case PHASE.STOPPED:
+      flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now);
+      break;
+  }
+  refreshKeyUI();
+});
+
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  const isA = A_KEYS.has(k), isD = D_KEYS.has(k);
+  if (!isA && !isD) return;
+  e.preventDefault();
+  if (isA) keys.a = false;
+  if (isD) keys.d = false;
+  const now = performance.now();
+  if (!attempt) { refreshKeyUI(); return; }
+
+  const relOrig    = (attempt.dir === -1 && isA) || (attempt.dir ===  1 && isD);
+  const relCounter = (attempt.dir === -1 && isD) || (attempt.dir ===  1 && isA);
+
+  switch (attempt.phase) {
+    case PHASE.STRAFING:
+      if (relOrig)    setPhase(attempt, PHASE.GAP, now); break;
+    case PHASE.OVERLAP:
+      if (relOrig)    setPhase(attempt, PHASE.COUNTER,  now);
+      else if (relCounter) setPhase(attempt, PHASE.STRAFING, now);
+      break;
+    case PHASE.COUNTER:
+      if (relCounter) setPhase(attempt, PHASE.STOPPED, now); break;
+  }
+  refreshKeyUI();
+});
+
+document.addEventListener('mousedown', e => { if (e.button === 0) fireShot(); });
+document.addEventListener('keydown',   e => { if (e.key === ' ') { e.preventDefault(); fireShot(); } });
+
+// ═══════════════════════════════════════════════════════════════════
+//  FIRE
+// ═══════════════════════════════════════════════════════════════════
+function fireShot() {
+  const now   = performance.now();
+  const speed = Math.abs(velocity);
+
+  if (attempt) {
+    flushPhase(attempt, now);
+    attempt.phaseStart = now; // prevent double-count if phase continues post-shot
+    attempt.peakSpeed  = Math.max(attempt.peakSpeed, speed);
+  }
+
+  // totalDecelMs: from first moment of any decel attempt to shot
+  const totalDecelMs = (attempt && attempt.decelStartAt !== null)
+    ? Math.round(now - attempt.decelStartAt) : 0;
+
+  const cls = classify(attempt, speed, totalDecelMs);
+
+  const rec = {
+    n:            history.length + 1,
+    result:       cls.result,
+    label:        cls.label,
+    color:        cls.color,
+    isSuccess:    cls.isSuccess,
+    isAttempt:    cls.isAttempt,
+    speed:        Math.round(speed),
+    totalDecelMs,
+    csMs:         attempt ? Math.round(attempt.counterMs) : 0,
+    gapMs:        attempt ? Math.round(attempt.gapMs)     : 0,
+    overlapMs:    attempt ? Math.round(attempt.overlapMs) : 0,
+    coastMs:      Math.round(COAST_MS),   // snapshot benchmark at time of shot
+  };
+
+  history.unshift(rec);
+  if (history.length > 50) history.pop();
+  feedback = { label:cls.label, color:cls.color, startMs:now };
+  updateSidebar(rec);
+
+  if      (keys.d && !keys.a) attempt = makeAttempt( 1, now);
+  else if (keys.a && !keys.d) attempt = makeAttempt(-1, now);
+  else                        attempt = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CLASSIFY
+//
+//  Primary axis: totalDecelMs vs COAST_MS (formula-derived benchmark)
+//  Secondary:    which technique was used (counter/coast/overlap)
+//
+//  Results:
+//   NO_ATTEMPT   — barely moved, not a real rep
+//   MOVING       — shot taken above accurate threshold (inaccurate)  [FAIL]
+//   PERFECT      — clean CS, totalDecel ≤ 1.2 × csMs                [SUCCESS]
+//   GOOD         — CS used, totalDecel ≤ 1.8 × csMs                 [SUCCESS]
+//   LATE_CS      — CS used, totalDecel < coastMs (still beats coast) [SUCCESS]
+//   COASTED      — friction only, totalDecel ≤ coastMs              [SUCCESS, slower]
+//   OVERLAP_STOP — both-keys only, totalDecel ≤ coastMs             [SUCCESS, slower]
+//   SLOW         — totalDecel > coastMs (worse than releasing keys)  [SUCCESS, but slow]
+//
+//  All SUCCESS results mean the shot was accurate. The label tells you
+//  how efficiently you got there relative to the coast benchmark.
+// ═══════════════════════════════════════════════════════════════════
+function classify(att, speed, totalDecelMs) {
+  if (!att || att.peakSpeed < MIN_ATTEMPT_SPEED)
+    return { result:'NO_ATTEMPT',    label:'No Attempt',    color:'#2a3540', isSuccess:false, isAttempt:false };
+
+  if (speed > ACCURATE_THRESH)
+    return { result:'MOVING',        label:'Moving',        color:'#ef4444', isSuccess:false, isAttempt:true };
+
+  // ── Accurate shot — classify technique + timing ──
+  const cs  = att.counterMs;
+  const ovl = att.overlapMs;
+  const gap = att.gapMs;
+
+  const hasRealCS  = cs  > 20;
+  const hasOverlap = ovl > 15;
+  const wasteMs    = ovl + gap;         // time spent in non-CS decel phases
+
+  // Slower than just letting go → bad habit, the player stalled/hesitated
+  if (totalDecelMs > COAST_MS * 1.2)
+    return { result:'SLOW',          label:'Slow',          color:'#ef4444', isSuccess:true,  isAttempt:true };
+
+  if (!hasRealCS && !hasOverlap)
+    return { result:'COASTED',       label:'Coasted',       color:'#6b7280', isSuccess:true,  isAttempt:true };
+
+  if (!hasRealCS && hasOverlap)
+    return { result:'OVERLAP_STOP',  label:'Overlap Stop',  color:'#eab308', isSuccess:true,  isAttempt:true };
+
+  // Counter-strafe was used — rate by totalDecelMs against formula benchmarks
+  if (wasteMs < 15 && totalDecelMs <= CS_MS * 1.2)
+    return { result:'PERFECT',       label:'Perfect',       color:'#22c55e', isSuccess:true,  isAttempt:true };
+
+  if (totalDecelMs <= CS_MS * 1.8)
+    return { result:'GOOD',          label:'Good',          color:'#86efac', isSuccess:true,  isAttempt:true };
+
+  if (totalDecelMs < COAST_MS)
+    return { result:'LATE_CS',       label:'Late CS',       color:'#facc15', isSuccess:true,  isAttempt:true };
+
+  // CS used but total time ≥ coastMs — possible if large gap/overlap preceded it
+  return   { result:'LATE_CS',       label:'Late CS',       color:'#eab308', isSuccess:true,  isAttempt:true };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PHYSICS — Source engine friction-first, then accelerate model.
+//  dt-based throughout → VRR / any Hz safe.
+//
+//  Per step:
+//    1. Friction:  drop = max(|v|, sv_stopspeed) × sv_friction × dt
+//                  new_speed = max(0, |v| - drop);  vel *= new_speed/|v|
+//    2. Accel:     wishdir = input direction (0 if both/neither)
+//                  addspeed = clamp(sv_accel × wishspeed × dt,
+//                                   0,  wishspeed - dot(vel,wishdir))
+//                  vel += wishdir × addspeed
+//
+//  Both keys pressed → wishdir = 0 → only friction acts.
+//  This matches CS2Kitchen: both keys ≈ same 230ms as release-only.
+// ═══════════════════════════════════════════════════════════════════
+function updatePhysics(dt) {
+  const spd = Math.abs(velocity);
+
+  // 1. Friction
+  if (spd > 0) {
+    const control  = Math.max(spd, SV.stopspeed);
+    const drop     = control * SV.friction * dt;
+    const newSpeed = Math.max(0, spd - drop);
+    velocity *= newSpeed / spd;
+  }
+
+  // 2. Acceleration
+  // Both keys → wishdir=0 (forces cancel), no accel added → friction only
+  const wishdir = (keys.d && !keys.a) ?  1
+                : (keys.a && !keys.d) ? -1 : 0;
+
+  if (wishdir !== 0) {
+    const wishspeed  = WPN.maxSpeed;
+    // dot(vel, wishdir): positive means already going that way
+    const speedInWish = velocity * wishdir;
+    let addspeed = SV.accelerate * wishspeed * dt;
+    // Clamp: can't overshoot wishspeed in that direction
+    addspeed = Math.min(addspeed, wishspeed - speedInWish);
+    if (addspeed > 0) velocity += wishdir * addspeed;
+  }
+
+  if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, Math.abs(velocity));
+
+  // Smooth visual position (lerp behind real velocity — feels tight but not jarring)
+  const MAX_DISP = 148; // px
+  const target   = (velocity / WPN.maxSpeed) * MAX_DISP;
+  visualPos     += (target - visualPos) * Math.min(1, 9 * dt);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDERING
+// ═══════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d', { alpha:false });
+let dpr = devicePixelRatio || 1;
+
+function resizeCanvas() {
+  dpr = devicePixelRatio || 1;
+  canvas.width  = Math.round(canvas.clientWidth  * dpr);
+  canvas.height = Math.round(canvas.clientHeight * dpr);
+}
+window.addEventListener('resize', resizeCanvas);
+new ResizeObserver(resizeCanvas).observe(canvas);
+resizeCanvas();
+
+// Teardrop: fat rounded leading dome, tapered trailing point.
+// At rest → perfect circle; under velocity → morphs directionally.
+// t = nonlinear deformation factor (0→1); dir = ±1
+function drawTear(cx, cy, R, vel) {
+  const absV = Math.abs(vel);
+  if (absV < 2) { ctx.arc(cx, cy, R, 0, Math.PI * 2); return; }
+
+  const t   = Math.pow(absV / WPN.maxSpeed, 0.58); // nonlinear — most change at mid-range
+  const dir = vel > 0 ? 1 : -1;
+
+  const frontX = cx + dir * R * (1 + 0.60 * t);   // leading dome pushes forward
+  const backX  = cx - dir * R * (1 - 0.10 * t);   // trailing tip barely retracts
+  const sX     = cx + dir * R * 0.02 * t;          // widest shoulder near centre
+  const h      = R  * (1 - 0.30 * t);              // half-height — squishes vertically
+
+  ctx.moveTo(frontX, cy);
+  ctx.bezierCurveTo(frontX, cy-h*.50,  sX+dir*R*.38, cy-h,  sX, cy-h);
+  ctx.bezierCurveTo(sX-dir*R*.52, cy-h,  backX, cy-h*.18,  backX, cy);
+  ctx.bezierCurveTo(backX, cy+h*.18,  sX-dir*R*.52, cy+h,  sX, cy+h);
+  ctx.bezierCurveTo(sX+dir*R*.38, cy+h,  frontX, cy+h*.50,  frontX, cy);
+  ctx.closePath();
+}
+
+function getColor(absV) {
+  if (absV <= ACCURATE_THRESH)
+    return lerp3([34,197,94],[200,212,218], absV/ACCURATE_THRESH);
+  return lerp3([200,212,218],[249,115,22], (absV-ACCURATE_THRESH)/(WPN.maxSpeed-ACCURATE_THRESH));
+}
+function lerp3(a, b, t) {
+  return `rgb(${~~(a[0]+(b[0]-a[0])*t)},${~~(a[1]+(b[1]-a[1])*t)},${~~(a[2]+(b[2]-a[2])*t)})`;
+}
+function lighten(rgb, amt) {
+  const m = rgb.match(/\d+/g);
+  return `rgb(${Math.min(255,~~(+m[0]+(255-+m[0])*amt))},${Math.min(255,~~(+m[1]+(255-+m[1])*amt))},${Math.min(255,~~(+m[2]+(255-+m[2])*amt))})`;
+}
+
+function render(ts) {
+  const W=canvas.width, H=canvas.height, cx=W*.5, cy=H*.5;
+
+  // Background
+  ctx.fillStyle='#080a0c'; ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='#0e1214'; ctx.lineWidth=1;
+  const gs=48*dpr;
+  for(let x=cx%gs;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=cy%gs;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // Centre mark
+  ctx.strokeStyle='#161c20';
+  ctx.beginPath();ctx.moveTo(cx-18,cy);ctx.lineTo(cx+18,cy);
+  ctx.moveTo(cx,cy-18);ctx.lineTo(cx,cy+18);ctx.stroke();
+
+  // Tear shape
+  const bx  = cx + visualPos * dpr;
+  const R   = 40 * dpr;
+  const col = getColor(Math.abs(velocity));
+
+  // Soft outer glow pass
+  ctx.save();
+  ctx.beginPath(); drawTear(bx,cy,R*1.5,velocity);
+  ctx.fillStyle=col.replace('rgb','rgba').replace(')',',.055)'); ctx.fill();
+  ctx.restore();
+
+  // Main shape
+  ctx.save();
+  ctx.shadowColor=col; ctx.shadowBlur=20*dpr;
+  ctx.beginPath(); drawTear(bx,cy,R,velocity);
+  ctx.fillStyle=col; ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle=lighten(col,.32); ctx.lineWidth=1.5; ctx.stroke();
+  ctx.restore();
+
+  // Feedback float label
+  if (feedback) {
+    const elapsed=ts-feedback.startMs, dur=700;
+    if (elapsed<dur) {
+      const t=elapsed/dur;
+      ctx.save();
+      ctx.globalAlpha=Math.pow(1-t,1.5)*Math.min(1,elapsed/70);
+      ctx.font=`700 ${~~(24*dpr)}px 'JetBrains Mono',monospace`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor=feedback.color; ctx.shadowBlur=12*dpr;
+      ctx.fillStyle=feedback.color;
+      ctx.fillText(feedback.label, cx, cy-R*2.3-t*R*.6);
+      ctx.restore();
+    } else { feedback=null; }
+  }
+
+  // Velocity bar
+  const pct=Math.abs(velocity)/WPN.maxSpeed*50;
+  if (velocity>=0) {
+    document.getElementById('velbar-right').style.width=pct+'%';
+    document.getElementById('velbar-left').style.width='0%';
+  } else {
+    document.getElementById('velbar-left').style.width=pct+'%';
+    document.getElementById('velbar-right').style.width='0%';
+  }
+
+  // Live readouts
+  document.getElementById('lv-speed').textContent=~~Math.abs(velocity);
+  const pl=attempt ? attempt.phase : 'IDLE';
+  document.getElementById('lv-phase').textContent=pl;
+  document.getElementById('hdr-phase').textContent=pl;
+
+  // Hide instructions after first real movement
+  if (attempt && attempt.peakSpeed>15) {
+    const el=document.getElementById('instructions');
+    if(el) el.style.display='none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SIDEBAR / DOM
+// ═══════════════════════════════════════════════════════════════════
+const $a=document.querySelector('[data-k="A"]');
+const $d=document.querySelector('[data-k="D"]');
+function refreshKeyUI() {
+  $a.classList.toggle('on',keys.a);
+  $d.classList.toggle('on',keys.d);
+}
+
+function updateSidebar(rec) {
+  const lv=document.getElementById('lv-result');
+  lv.textContent=rec.label; lv.style.color=rec.color;
+
+  if (rec.totalDecelMs > 0) {
+    document.getElementById('lv-total').textContent  = rec.totalDecelMs;
+    document.getElementById('lv-total-u').textContent= ' ms';
+  } else {
+    document.getElementById('lv-total').textContent  = '—';
+    document.getElementById('lv-total-u').textContent= '';
+  }
+
+  if (rec.csMs > 0) {
+    document.getElementById('lv-cs').textContent  = rec.csMs;
+    document.getElementById('lv-csu').textContent = ' ms';
+  } else {
+    document.getElementById('lv-cs').textContent  = '—';
+    document.getElementById('lv-csu').textContent = '';
+  }
+
+  computeAverages();
+  prependRow(rec);
+}
+
+function computeAverages() {
+  const real=history.filter(h=>h.isAttempt);
+  document.getElementById('av-tot').textContent=real.length;
+  if(!real.length) return;
+
+  const succ=real.filter(h=>h.isSuccess).length;
+  document.getElementById('av-rate').textContent=~~(succ/real.length*100)+'%';
+
+  const mean=arr=>arr.length ? ~~(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+
+  const td  = real.filter(h=>h.totalDecelMs>0).map(h=>h.totalDecelMs);
+  const cs  = real.filter(h=>h.csMs>0).map(h=>h.csMs);
+  const gap = real.filter(h=>h.gapMs>0).map(h=>h.gapMs);
+  const ovl = real.filter(h=>h.overlapMs>0).map(h=>h.overlapMs);
+
+  document.getElementById('av-tot-d').textContent = td.length  ? mean(td)+'ms'   : '—';
+  document.getElementById('av-cs').textContent     = cs.length  ? mean(cs)+'ms'   : '—';
+  document.getElementById('av-spd').textContent    = mean(real.map(h=>h.speed))+' u/s';
+  document.getElementById('av-gap').textContent    = gap.length ? mean(gap)+'ms'  : '—';
+  document.getElementById('av-ovl').textContent    = ovl.length ? mean(ovl)+'ms'  : '—';
+}
+
+// Colour bar showing totalDecelMs as fraction of coastMs
+function decelBarStyle(totalDecelMs, coastMs) {
+  const f = Math.min(1, totalDecelMs / (coastMs || 1));
+  // interpolate green→yellow→red
+  let r,g;
+  if (f < 0.5) { r=~~(f*2*230); g=200; }
+  else         { r=230; g=~~((1-(f-.5)*2)*200); }
+  return `background:rgb(${r},${g},40);width:${~~(f*88)}px`;
+}
+
+function prependRow(rec) {
+  const det = [rec.speed+' u/s', 'total '+rec.totalDecelMs+'ms'];
+  if (rec.csMs      > 0) det.push('CS '   +rec.csMs     +'ms');
+  if (rec.gapMs     > 0) det.push('gap '  +rec.gapMs    +'ms');
+  if (rec.overlapMs > 0) det.push('ovlp ' +rec.overlapMs+'ms');
+
+  const barStyle = rec.isAttempt
+    ? `style="${decelBarStyle(rec.totalDecelMs, rec.coastMs)}"` : 'style="display:none"';
+
+  const row=document.createElement('div');
+  row.className='h-row'+(rec.isAttempt?'':' no-attempt');
+  row.innerHTML=
+    `<span class="h-num">#${rec.n}</span>`+
+    `<span class="h-res" style="color:${rec.color}">${rec.label}</span>`+
+    `<span class="h-det">${det.join('<br>')}<div class="h-decel-bar" ${barStyle}></div></span>`;
+
+  const list=document.getElementById('hist-list');
+  list.insertBefore(row,list.firstChild);
+  while(list.children.length>50) list.removeChild(list.lastChild);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  VELOCITY BAR — inject threshold markers once DOM is ready
+// ═══════════════════════════════════════════════════════════════════
+function initVelBar() {
+  const wrap=document.getElementById('velbar-wrap');
+  ['vbt-l','vbt-r'].forEach(id=>{
+    const el=document.createElement('div');
+    el.id=id; el.className='vb-thresh'; wrap.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GAME LOOP — VRR safe, delta-time throughout
+// ═══════════════════════════════════════════════════════════════════
+let lastTs=null, fpsFrames=0, fpsTimer=0;
+
+function loop(ts) {
+  if (lastTs===null) lastTs=ts;
+  const dt=Math.min((ts-lastTs)/1000, 0.05); // 50ms clamp handles tab-wake spikes
+  lastTs=ts;
+
+  fpsFrames++; fpsTimer+=dt;
+  if (fpsTimer>=1) {
+    document.getElementById('fps-counter').textContent=fpsFrames+' fps';
+    fpsFrames=0; fpsTimer-=1;
+  }
+
+  updatePhysics(dt);
+  render(ts);
+  requestAnimationFrame(loop);
+}
+
+// ── Boot ──
+initVelBar();
+recomputeBenchmarks();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
