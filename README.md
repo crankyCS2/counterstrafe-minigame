@@ -183,4 +183,4 @@ Edit the `SV` object. `recomputeBenchmarks()` will recalculate `COAST_MS` and `C
 
 ## License
 
-Mozilla Public License 2.0. See the comment at the top of `cs2_final.html` or visit https://mozilla.org/MPL/2.0/.
+Mozilla Public License 2.0.
