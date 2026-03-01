@@ -1,9 +1,7 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+     License, v. 2.0. If a copy of the MPL was not distributed with this
+     file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
 <!DOCTYPE html>
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -25,7 +23,7 @@
     #app { display:flex; height:100vh; }
 
     /* ── Arena ── */
-    #arena { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
+    #arena { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; overflow:hidden; }
     #header {
       height:34px; background:var(--bg1); border-bottom:1px solid var(--border);
       display:flex; align-items:center; padding:0 16px; gap:16px; flex-shrink:0;
@@ -107,12 +105,12 @@
     @keyframes rowIn { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:translateX(0)} }
     .h-num { color:var(--text-dim); font-size:9px; padding-top:1px; }
     .h-res { font-weight:700; font-size:10px; }
-    .h-det { color:var(--text-mid); font-size:9px; display:flex; flex-direction:column; gap:1px; }
+    .h-det { color:var(--text-mid); font-size:9px; display:flex; flex-direction:column; gap:2px; }
     .h-decel-bar { height:2px; border-radius:1px; margin-top:3px; max-width:90px; }
 
     /* Instructions */
-    #instructions { position:absolute; top:50%; left:50%;
-      transform:translate(-50%,calc(-50% + 90px)); text-align:center; pointer-events:none; }
+    #instructions { position:absolute; bottom:110px; left:50%;
+      transform:translateX(-50%); text-align:center; pointer-events:none; }
     #instructions p { font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
       color:var(--text-dim); line-height:2.3; }
     #instructions span { color:var(--text-mid); }
@@ -135,7 +133,6 @@
     <div id="velbar-wrap">
       <div id="velbar-left"></div>
       <div id="velbar-right"></div>
-      <!-- threshold markers injected by JS once weapon config is known -->
       <div id="vb-center"></div>
     </div>
 
@@ -159,7 +156,6 @@
       Live Data
     </div>
 
-    <!-- 6-cell live grid: Speed | Phase | Total Decel / CS Time | Gap | Overlap | Last Shot -->
     <div id="live-grid">
       <div class="lc">
         <div class="lc-label">Speed</div>
@@ -183,7 +179,6 @@
       </div>
     </div>
 
-    <!-- Weapon benchmarks -->
     <div id="bench-strip">
       <span id="bench-weapon">AK-47</span>
       <span>CS ideal <b id="bench-cs">—</b></span>
@@ -210,18 +205,15 @@
 
 // ═══════════════════════════════════════════════════════════════════
 //  SOURCE ENGINE PHYSICS CONSTANTS
-//  From formula doc (sv_ cvars, community/Valve-confirmed):
 // ═══════════════════════════════════════════════════════════════════
 const SV = {
-  friction:      5.2,   // sv_friction
-  stopspeed:     80,    // sv_stopspeed
-  accelerate:    5.5,   // sv_accelerate
+  friction:      5.2,
+  stopspeed:     80,
+  accelerate:    5.5,
 };
 
 // ═══════════════════════════════════════════════════════════════════
 //  WEAPON CONFIG
-//  CS2Kitchen confirmed accurate_thresh = 73 u/s for ALL weapons.
-//  maxSpeed is weapon-specific. Default: AK-47.
 // ═══════════════════════════════════════════════════════════════════
 const WEAPONS = {
   ak47:  { name:'AK-47',   maxSpeed: 221 },
@@ -230,43 +222,30 @@ const WEAPONS = {
   m4a4:  { name:'M4A4',    maxSpeed: 221 },
 };
 let WPN = WEAPONS.ak47;
-const ACCURATE_THRESH = 73;  // u/s — same for all weapons (CS2Kitchen verified)
-const MIN_ATTEMPT_SPEED = 85; // u/s — minimum peak to count as a real attempt
+const ACCURATE_THRESH = 73;
+const MIN_ATTEMPT_SPEED = 85;
 
-// ── Compute benchmark times analytically from Source engine formulas ──
-// coastMs: time from maxSpeed to ACCURATE_THRESH with friction only
-//   Above sv_stopspeed: exponential decay  v(t) = v0 × e^(-friction × t)
-//   Below sv_stopspeed: linear             v(t) = v0 - friction × stopspeed × t
+// ── Compute benchmark times analytically ──
 function computeCoastMs(maxSpeed) {
   let t = 0;
   let v = maxSpeed;
-  // Exponential phase down to stopspeed (or accurate_thresh if lower)
   const v1 = Math.max(SV.stopspeed, ACCURATE_THRESH);
   if (v > v1) {
     t += Math.log(v / v1) / SV.friction;
     v = v1;
   }
-  // Linear phase (control = stopspeed) down to accurate_thresh
   if (v > ACCURATE_THRESH) {
     t += (v - ACCURATE_THRESH) / (SV.friction * SV.stopspeed);
   }
-  return t * 1000; // ms
+  return t * 1000;
 }
 
-// csMs: time from maxSpeed to ACCURATE_THRESH with counter-strafe
-//   Combined ODE: dv/dt = -(friction × v + accelerate × maxSpeed)
-//   Solution:  v(t) = (v0 + A) × e^(-friction × t) - A   where A = accelerate × maxSpeed / friction
-//   Note: strictly valid above stopspeed. Below stopspeed the friction term changes,
-//   but the counter-strafe window is almost entirely above it, so the error is negligible.
 function computeCsMs(maxSpeed) {
-  const A  = SV.accelerate * maxSpeed / SV.friction;   // ≈ 233.9 for AK
-  // v(t) = (maxSpeed + A) × e^(-friction × t) - A = ACCURATE_THRESH
-  // t = -ln((ACCURATE_THRESH + A) / (maxSpeed + A)) / friction
+  const A  = SV.accelerate * maxSpeed / SV.friction;
   const t = -Math.log((ACCURATE_THRESH + A) / (maxSpeed + A)) / SV.friction;
-  return t * 1000; // ms
+  return t * 1000;
 }
 
-// Precompute for current weapon
 let COAST_MS, CS_MS;
 function recomputeBenchmarks() {
   COAST_MS = computeCoastMs(WPN.maxSpeed);
@@ -274,7 +253,7 @@ function recomputeBenchmarks() {
   document.getElementById('bench-weapon').textContent = WPN.name;
   document.getElementById('bench-cs').textContent     = Math.round(CS_MS)  + 'ms';
   document.getElementById('bench-coast').textContent  = Math.round(COAST_MS) + 'ms';
-  // Reposition threshold markers on the velocity bar
+
   const pct = (ACCURATE_THRESH / WPN.maxSpeed) * 50;
   const l = document.getElementById('vbt-l');
   const r = document.getElementById('vbt-r');
@@ -283,46 +262,41 @@ function recomputeBenchmarks() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  PHASE STATE MACHINE  (see previous version for full transition table)
-// ═══════════════════════════════════════════════════════════════════
-const PHASE = { STRAFING:'STRAFING', GAP:'GAP', OVERLAP:'OVERLAP', COUNTER:'COUNTER', STOPPED:'STOPPED' };
-
-function makeAttempt(dir, now) {
-  return { dir, phase:PHASE.STRAFING, phaseStart:now, peakSpeed:0,
-           decelStartAt:null, overlapMs:0, gapMs:0, counterMs:0 };
-}
-
-function flushPhase(att, now) {
-  if (!att) return;
-  const e = now - att.phaseStart;
-  if (e <= 0) return;
-  if (att.phase === PHASE.GAP)     att.gapMs     += e;
-  if (att.phase === PHASE.OVERLAP) att.overlapMs += e;
-  if (att.phase === PHASE.COUNTER) att.counterMs += e;
-}
-
-function setPhase(att, phase, now) {
-  flushPhase(att, now);
-  att.phase      = phase;
-  att.phaseStart = now;
-  if (att.decelStartAt === null &&
-      (phase === PHASE.GAP || phase === PHASE.OVERLAP || phase === PHASE.COUNTER)) {
-    att.decelStartAt = now;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
 //  STATE
+//  velocity  — the only source of truth for phase transitions
+//  keys      — dumb booleans, only used by physics + UI
+//  attempt   — timing accumulator, written each frame, never drives state
 // ═══════════════════════════════════════════════════════════════════
 let velocity  = 0;
-let visualPos = 0;       // smoothed px offset from canvas centre
+let visualPos = 0;
 const keys    = { a:false, d:false };
+
+// Top-level phase: what is the character actually doing right now?
+//   'IDLE'        — not moving meaningfully
+//   'STRAFING'    — velocity building / cruising in one direction
+//   'DECELERATING'— velocity was at peak, now heading toward zero
+const PHASE = { IDLE:'IDLE', STRAFING:'STRAFING', DECELERATING:'DECELERATING' };
+let phase = PHASE.IDLE;
+
+// Current attempt — accumulates timing data each frame while DECELERATING
 let attempt   = null;
-let feedback  = null;    // { label, color, startMs }
+let feedback  = null;
 const history = [];
 
+function makeAttempt(now) {
+  return {
+    decelStartAt: now,
+    peakSpeed:    Math.abs(velocity),  // capture speed at the moment decel begins
+    dir:          Math.sign(velocity), // direction we were strafing
+    gapMs:      0,  // both keys released
+    overlapMs:  0,  // both keys held
+    counterMs:  0,  // only counter key held
+    stoppedMs:  0,  // velocity ≈ 0, waiting
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════
-//  INPUT
+//  INPUT  — keys ONLY, zero state-machine logic here
 // ═══════════════════════════════════════════════════════════════════
 const A_KEYS = new Set(['a','arrowleft']);
 const D_KEYS = new Set(['d','arrowright']);
@@ -333,34 +307,8 @@ document.addEventListener('keydown', e => {
   const isA = A_KEYS.has(k), isD = D_KEYS.has(k);
   if (!isA && !isD) return;
   e.preventDefault();
-  if ((isA && keys.a) || (isD && keys.d)) return; // guard double-fire
-
   if (isA) keys.a = true;
   if (isD) keys.d = true;
-  const now = performance.now();
-  const pressedDir = isD ? 1 : -1;
-
-  if (!attempt) {
-    attempt = makeAttempt(pressedDir, now);
-    refreshKeyUI(); return;
-  }
-
-  switch (attempt.phase) {
-    case PHASE.STRAFING:
-      if (pressedDir === -attempt.dir) setPhase(attempt, PHASE.OVERLAP, now);
-      break;
-    case PHASE.GAP:
-      if (pressedDir === -attempt.dir)  setPhase(attempt, PHASE.COUNTER, now);
-      else { flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now); }
-      break;
-    case PHASE.OVERLAP: break; // both already held
-    case PHASE.COUNTER:
-      if (pressedDir === attempt.dir) { flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now); }
-      break;
-    case PHASE.STOPPED:
-      flushPhase(attempt, now); attempt = makeAttempt(pressedDir, now);
-      break;
-  }
   refreshKeyUI();
 });
 
@@ -371,27 +319,11 @@ document.addEventListener('keyup', e => {
   e.preventDefault();
   if (isA) keys.a = false;
   if (isD) keys.d = false;
-  const now = performance.now();
-  if (!attempt) { refreshKeyUI(); return; }
-
-  const relOrig    = (attempt.dir === -1 && isA) || (attempt.dir ===  1 && isD);
-  const relCounter = (attempt.dir === -1 && isD) || (attempt.dir ===  1 && isA);
-
-  switch (attempt.phase) {
-    case PHASE.STRAFING:
-      if (relOrig)    setPhase(attempt, PHASE.GAP, now); break;
-    case PHASE.OVERLAP:
-      if (relOrig)    setPhase(attempt, PHASE.COUNTER,  now);
-      else if (relCounter) setPhase(attempt, PHASE.STRAFING, now);
-      break;
-    case PHASE.COUNTER:
-      if (relCounter) setPhase(attempt, PHASE.STOPPED, now); break;
-  }
   refreshKeyUI();
 });
 
-document.addEventListener('mousedown', e => { if (e.button === 0) fireShot(); });
-document.addEventListener('keydown',   e => { if (e.key === ' ') { e.preventDefault(); fireShot(); } });
+document.getElementById('canvas').addEventListener('mousedown', e => { if (e.button === 0) fireShot(); });
+document.addEventListener('keydown', e => { if (e.key === ' ') { e.preventDefault(); fireShot(); } });
 
 // ═══════════════════════════════════════════════════════════════════
 //  FIRE
@@ -399,18 +331,9 @@ document.addEventListener('keydown',   e => { if (e.key === ' ') { e.preventDefa
 function fireShot() {
   const now   = performance.now();
   const speed = Math.abs(velocity);
+  const totalDecelMs = attempt ? Math.round(now - attempt.decelStartAt) : 0;
 
-  if (attempt) {
-    flushPhase(attempt, now);
-    attempt.phaseStart = now; // prevent double-count if phase continues post-shot
-    attempt.peakSpeed  = Math.max(attempt.peakSpeed, speed);
-  }
-
-  // totalDecelMs: from first moment of any decel attempt to shot
-  const totalDecelMs = (attempt && attempt.decelStartAt !== null)
-    ? Math.round(now - attempt.decelStartAt) : 0;
-
-  const cls = classify(attempt, speed, totalDecelMs);
+  const cls = classify(speed, totalDecelMs);
 
   const rec = {
     n:            history.length + 1,
@@ -421,10 +344,11 @@ function fireShot() {
     isAttempt:    cls.isAttempt,
     speed:        Math.round(speed),
     totalDecelMs,
-    csMs:         attempt ? Math.round(attempt.counterMs) : 0,
-    gapMs:        attempt ? Math.round(attempt.gapMs)     : 0,
-    overlapMs:    attempt ? Math.round(attempt.overlapMs) : 0,
-    coastMs:      Math.round(COAST_MS),   // snapshot benchmark at time of shot
+    csMs:         attempt ? Math.round(attempt.counterMs)  : 0,
+    gapMs:        attempt ? Math.round(attempt.gapMs)      : 0,
+    overlapMs:    attempt ? Math.round(attempt.overlapMs)  : 0,
+    stoppedMs:    attempt ? Math.round(attempt.stoppedMs)  : 0,
+    coastMs:      Math.round(COAST_MS),
   };
 
   history.unshift(rec);
@@ -432,115 +356,180 @@ function fireShot() {
   feedback = { label:cls.label, color:cls.color, startMs:now };
   updateSidebar(rec);
 
-  if      (keys.d && !keys.a) attempt = makeAttempt( 1, now);
-  else if (keys.a && !keys.d) attempt = makeAttempt(-1, now);
-  else                        attempt = null;
+  // Reset — phase will be re-evaluated next physics frame from velocity
+  attempt = null;
+  phase   = PHASE.IDLE;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  CLASSIFY
-//
-//  Primary axis: totalDecelMs vs COAST_MS (formula-derived benchmark)
-//  Secondary:    which technique was used (counter/coast/overlap)
-//
-//  Results:
-//   NO_ATTEMPT   — barely moved, not a real rep
-//   MOVING       — shot taken above accurate threshold (inaccurate)  [FAIL]
-//   PERFECT      — clean CS, totalDecel ≤ 1.2 × csMs                [SUCCESS]
-//   GOOD         — CS used, totalDecel ≤ 1.8 × csMs                 [SUCCESS]
-//   LATE_CS      — CS used, totalDecel < coastMs (still beats coast) [SUCCESS]
-//   COASTED      — friction only, totalDecel ≤ coastMs              [SUCCESS, slower]
-//   OVERLAP_STOP — both-keys only, totalDecel ≤ coastMs             [SUCCESS, slower]
-//   SLOW         — totalDecel > coastMs (worse than releasing keys)  [SUCCESS, but slow]
-//
-//  All SUCCESS results mean the shot was accurate. The label tells you
-//  how efficiently you got there relative to the coast benchmark.
 // ═══════════════════════════════════════════════════════════════════
-function classify(att, speed, totalDecelMs) {
-  if (!att || att.peakSpeed < MIN_ATTEMPT_SPEED)
-    return { result:'NO_ATTEMPT',    label:'No Attempt',    color:'#2a3540', isSuccess:false, isAttempt:false };
+function classify(speed, totalDecelMs) {
+  // Never tried to decelerate (shot mid-strafe, no attempt object)
+  if (!attempt)
+    return { result:'MOVING', label:'Moving', color:'#ef4444', isSuccess:false, isAttempt: speed > ACCURATE_THRESH };
+
+  if (attempt.peakSpeed < MIN_ATTEMPT_SPEED)
+    return { result:'NO_ATTEMPT', label:'No Attempt', color:'#3a4248', isSuccess:false, isAttempt:false };
 
   if (speed > ACCURATE_THRESH)
-    return { result:'MOVING',        label:'Moving',        color:'#ef4444', isSuccess:false, isAttempt:true };
+    return { result:'MOVING', label:'Moving', color:'#ef4444', isSuccess:false, isAttempt:true };
 
-  // ── Accurate shot — classify technique + timing ──
-  const cs  = att.counterMs;
-  const ovl = att.overlapMs;
-  const gap = att.gapMs;
+  if (totalDecelMs > COAST_MS)
+    return { result:'TOO_SLOW', label:'Too Slow', color:'#ef4444', isSuccess:false, isAttempt:true };
 
-  const hasRealCS  = cs  > 20;
-  const hasOverlap = ovl > 15;
-  const wasteMs    = ovl + gap;         // time spent in non-CS decel phases
+  if (totalDecelMs <= 80)
+    return { result:'PERFECT', label:'Perfect',  color:'#22c55e', isSuccess:true, isAttempt:true };
+  if (totalDecelMs <= 100)
+    return { result:'GOOD',    label:'Good',     color:'#4ade80', isSuccess:true, isAttempt:true };
+  if (totalDecelMs <= 130)
+    return { result:'OK',      label:'OK',       color:'#a3e635', isSuccess:true, isAttempt:true };
+  if (totalDecelMs <= 180)
+    return { result:'SLOW',    label:'Slow',     color:'#facc15', isSuccess:true, isAttempt:true };
 
-  // Slower than just letting go → bad habit, the player stalled/hesitated
-  if (totalDecelMs > COAST_MS * 1.2)
-    return { result:'SLOW',          label:'Slow',          color:'#ef4444', isSuccess:true,  isAttempt:true };
-
-  if (!hasRealCS && !hasOverlap)
-    return { result:'COASTED',       label:'Coasted',       color:'#6b7280', isSuccess:true,  isAttempt:true };
-
-  if (!hasRealCS && hasOverlap)
-    return { result:'OVERLAP_STOP',  label:'Overlap Stop',  color:'#eab308', isSuccess:true,  isAttempt:true };
-
-  // Counter-strafe was used — rate by totalDecelMs against formula benchmarks
-  if (wasteMs < 15 && totalDecelMs <= CS_MS * 1.2)
-    return { result:'PERFECT',       label:'Perfect',       color:'#22c55e', isSuccess:true,  isAttempt:true };
-
-  if (totalDecelMs <= CS_MS * 1.8)
-    return { result:'GOOD',          label:'Good',          color:'#86efac', isSuccess:true,  isAttempt:true };
-
-  if (totalDecelMs < COAST_MS)
-    return { result:'LATE_CS',       label:'Late CS',       color:'#facc15', isSuccess:true,  isAttempt:true };
-
-  // CS used but total time ≥ coastMs — possible if large gap/overlap preceded it
-  return   { result:'LATE_CS',       label:'Late CS',       color:'#eab308', isSuccess:true,  isAttempt:true };
+  return { result:'COASTED', label:'Coasted', color:'#f97316', isSuccess:true, isAttempt:true };
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  PHYSICS — Source engine friction-first, then accelerate model.
-//  dt-based throughout → VRR / any Hz safe.
-//
-//  Per step:
-//    1. Friction:  drop = max(|v|, sv_stopspeed) × sv_friction × dt
-//                  new_speed = max(0, |v| - drop);  vel *= new_speed/|v|
-//    2. Accel:     wishdir = input direction (0 if both/neither)
-//                  addspeed = clamp(sv_accel × wishspeed × dt,
-//                                   0,  wishspeed - dot(vel,wishdir))
-//                  vel += wishdir × addspeed
-//
-//  Both keys pressed → wishdir = 0 → only friction acts.
-//  This matches CS2Kitchen: both keys ≈ same 230ms as release-only.
+//  PHYSICS + VELOCITY-DRIVEN STATE MACHINE
+//  Called every frame. Velocity changes → state follows. Not the other way.
 // ═══════════════════════════════════════════════════════════════════
 function updatePhysics(dt) {
-  const spd = Math.abs(velocity);
+  const prevVelocity = velocity;
+  const prevAbsSpd   = Math.abs(prevVelocity);
 
-  // 1. Friction
-  if (spd > 0) {
-    const control  = Math.max(spd, SV.stopspeed);
+  // ── Source Engine friction ──
+  if (Math.abs(velocity) > 0) {
+    const control  = Math.max(Math.abs(velocity), SV.stopspeed);
     const drop     = control * SV.friction * dt;
-    const newSpeed = Math.max(0, spd - drop);
-    velocity *= newSpeed / spd;
+    const newSpeed = Math.max(0, Math.abs(velocity) - drop);
+    velocity       = newSpeed === 0 ? 0 : velocity * (newSpeed / Math.abs(velocity));
   }
 
-  // 2. Acceleration
-  // Both keys → wishdir=0 (forces cancel), no accel added → friction only
+  // ── Source Engine acceleration ──
   const wishdir = (keys.d && !keys.a) ?  1
                 : (keys.a && !keys.d) ? -1 : 0;
 
   if (wishdir !== 0) {
-    const wishspeed  = WPN.maxSpeed;
-    // dot(vel, wishdir): positive means already going that way
     const speedInWish = velocity * wishdir;
-    let addspeed = SV.accelerate * wishspeed * dt;
-    // Clamp: can't overshoot wishspeed in that direction
-    addspeed = Math.min(addspeed, wishspeed - speedInWish);
+    let addspeed = SV.accelerate * WPN.maxSpeed * dt;
+    addspeed = Math.min(addspeed, WPN.maxSpeed - speedInWish);
     if (addspeed > 0) velocity += wishdir * addspeed;
   }
 
-  if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, Math.abs(velocity));
+  const absSpd = Math.abs(velocity);
 
-  // Smooth visual position (lerp behind real velocity — feels tight but not jarring)
-  const MAX_DISP = 148; // px
+  // ── State machine — driven entirely by what velocity is doing ──
+  switch (phase) {
+    case PHASE.IDLE:
+      if (absSpd > 15) {
+        phase   = PHASE.STRAFING;
+        attempt = null;
+      }
+      break;
+
+    case PHASE.STRAFING:
+      // Track peak while cruising
+      if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, absSpd);
+
+      // Deceleration begins when velocity is meaningfully dropping from a real peak.
+      // Condition: had enough speed to count AND velocity is now clearly falling.
+      // We detect this as: wishdir is not in the same direction as current velocity
+      // (player released key OR pressed counter), causing speed to drop.
+      // Use velocity delta: if absSpd dropped compared to last frame AND we're not
+      // just coasting up to max speed, transition to DECELERATING.
+      {
+        const wasFast    = prevAbsSpd >= MIN_ATTEMPT_SPEED;
+        const nowSlowing = absSpd < prevAbsSpd - 0.5; // meaningful drop this frame
+        if (wasFast && nowSlowing) {
+          phase   = PHASE.DECELERATING;
+          attempt = makeAttempt(performance.now());
+        }
+      }
+      break;
+
+    case PHASE.DECELERATING: {
+      if (!attempt) { phase = PHASE.IDLE; break; } // safety
+
+      const now    = performance.now();
+      const frameMs = dt * 1000;
+
+      // ── Per-frame accumulation: what are the keys doing right now? ──
+      const holdingOrig    = attempt.dir === -1 ? keys.a : keys.d;
+      const holdingCounter = attempt.dir === -1 ? keys.d : keys.a;
+
+      if (absSpd < 3) {
+        attempt.stoppedMs += frameMs;
+      } else if (holdingOrig && holdingCounter) {
+        attempt.overlapMs += frameMs;
+      } else if (!holdingOrig && !holdingCounter) {
+        attempt.gapMs     += frameMs;
+      } else if (holdingCounter && !holdingOrig) {
+        attempt.counterMs += frameMs;
+      }
+      // holdingOrig && !holdingCounter: they re-pressed original key —
+      // velocity will start rebuilding in original dir, handled below.
+
+      // ── Abort detection: velocity rebuilt past threshold in ANY direction ──
+      // This catches:
+      //   • Player held counter too long → overshot, now moving other way
+      //   • Player re-pressed original key → going back to original strafe
+      // Both cases mean they chose to change direction, not shoot.
+      if (absSpd > ACCURATE_THRESH && attempt.peakSpeed >= MIN_ATTEMPT_SPEED) {
+        const velocityRebuilt = absSpd > prevAbsSpd + 0.5; // speed increasing again
+
+        if (velocityRebuilt) {
+          // Log the abort
+          const abortRec = {
+            n:         history.length + 1,
+            result:    'ABORTED',
+            label:     'Changed Dir',
+            color:     '#6a7880',
+            isSuccess: false,
+            isAttempt: true,
+            speed:     Math.round(absSpd),
+            totalDecelMs: Math.round(now - attempt.decelStartAt),
+            csMs:      Math.round(attempt.counterMs),
+            gapMs:     Math.round(attempt.gapMs),
+            overlapMs: Math.round(attempt.overlapMs),
+            stoppedMs: Math.round(attempt.stoppedMs),
+            coastMs:   Math.round(COAST_MS),
+          };
+          history.unshift(abortRec);
+          if (history.length > 50) history.pop();
+          feedback = { label:'Changed Dir', color:'#6a7880', startMs:now };
+          updateSidebar(abortRec);
+
+          // Cleanly restart as a new STRAFING in the new direction
+          phase   = PHASE.STRAFING;
+          attempt = null;
+        }
+      }
+
+      // ── Natural stop: came all the way to zero with no rebuild ──
+      if (absSpd === 0 && attempt) {
+        // Sat at zero — keep accumulating stoppedMs until shot or movement
+        // If they start moving again (caught by IDLE→STRAFING above), attempt resets
+      }
+
+      // ── Return to IDLE if velocity has been zero long enough ──
+      if (absSpd === 0 && (!keys.a && !keys.d)) {
+        // Don't reset attempt here — player may still shoot from stopped position
+        // Phase stays DECELERATING so a shot is still classified correctly
+      }
+
+      break;
+    }
+  }
+
+  // If we left DECELERATING for STRAFING (abort), the new STRAFING has no attempt.
+  // That's correct — we need to build speed before tracking a new decel.
+
+  // Update peak speed continuously (also needed for STRAFING→DECEL transition)
+  if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, absSpd);
+
+  // Visual smoothing
+  const MAX_DISP = 148;
   const target   = (velocity / WPN.maxSpeed) * MAX_DISP;
   visualPos     += (target - visualPos) * Math.min(1, 9 * dt);
 }
@@ -561,20 +550,17 @@ window.addEventListener('resize', resizeCanvas);
 new ResizeObserver(resizeCanvas).observe(canvas);
 resizeCanvas();
 
-// Teardrop: fat rounded leading dome, tapered trailing point.
-// At rest → perfect circle; under velocity → morphs directionally.
-// t = nonlinear deformation factor (0→1); dir = ±1
 function drawTear(cx, cy, R, vel) {
   const absV = Math.abs(vel);
   if (absV < 2) { ctx.arc(cx, cy, R, 0, Math.PI * 2); return; }
 
-  const t   = Math.pow(absV / WPN.maxSpeed, 0.58); // nonlinear — most change at mid-range
+  const t   = Math.pow(absV / WPN.maxSpeed, 0.58);
   const dir = vel > 0 ? 1 : -1;
 
-  const frontX = cx + dir * R * (1 + 0.60 * t);   // leading dome pushes forward
-  const backX  = cx - dir * R * (1 - 0.10 * t);   // trailing tip barely retracts
-  const sX     = cx + dir * R * 0.02 * t;          // widest shoulder near centre
-  const h      = R  * (1 - 0.30 * t);              // half-height — squishes vertically
+  const frontX = cx + dir * R * (1 + 0.60 * t);
+  const backX  = cx - dir * R * (1 - 0.10 * t);
+  const sX     = cx + dir * R * 0.02 * t;
+  const h      = R  * (1 - 0.30 * t);
 
   ctx.moveTo(frontX, cy);
   ctx.bezierCurveTo(frontX, cy-h*.50,  sX+dir*R*.38, cy-h,  sX, cy-h);
@@ -600,32 +586,26 @@ function lighten(rgb, amt) {
 function render(ts) {
   const W=canvas.width, H=canvas.height, cx=W*.5, cy=H*.5;
 
-  // Background
   ctx.fillStyle='#080a0c'; ctx.fillRect(0,0,W,H);
 
-  // Grid
   ctx.strokeStyle='#0e1214'; ctx.lineWidth=1;
   const gs=48*dpr;
   for(let x=cx%gs;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=cy%gs;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-  // Centre mark
   ctx.strokeStyle='#161c20';
   ctx.beginPath();ctx.moveTo(cx-18,cy);ctx.lineTo(cx+18,cy);
   ctx.moveTo(cx,cy-18);ctx.lineTo(cx,cy+18);ctx.stroke();
 
-  // Tear shape
   const bx  = cx + visualPos * dpr;
   const R   = 40 * dpr;
   const col = getColor(Math.abs(velocity));
 
-  // Soft outer glow pass
   ctx.save();
   ctx.beginPath(); drawTear(bx,cy,R*1.5,velocity);
   ctx.fillStyle=col.replace('rgb','rgba').replace(')',',.055)'); ctx.fill();
   ctx.restore();
 
-  // Main shape
   ctx.save();
   ctx.shadowColor=col; ctx.shadowBlur=20*dpr;
   ctx.beginPath(); drawTear(bx,cy,R,velocity);
@@ -634,13 +614,13 @@ function render(ts) {
   ctx.strokeStyle=lighten(col,.32); ctx.lineWidth=1.5; ctx.stroke();
   ctx.restore();
 
-  // Feedback float label
   if (feedback) {
     const elapsed=ts-feedback.startMs, dur=700;
     if (elapsed<dur) {
       const t=elapsed/dur;
       ctx.save();
-      ctx.globalAlpha=Math.pow(1-t,1.5)*Math.min(1,elapsed/70);
+      // Removed the Math.min(1, elapsed/70) fade-in effect. Text pops instantly.
+      ctx.globalAlpha=Math.pow(1-t,1.5);
       ctx.font=`700 ${~~(24*dpr)}px 'JetBrains Mono',monospace`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.shadowColor=feedback.color; ctx.shadowBlur=12*dpr;
@@ -650,7 +630,6 @@ function render(ts) {
     } else { feedback=null; }
   }
 
-  // Velocity bar
   const pct=Math.abs(velocity)/WPN.maxSpeed*50;
   if (velocity>=0) {
     document.getElementById('velbar-right').style.width=pct+'%';
@@ -660,13 +639,10 @@ function render(ts) {
     document.getElementById('velbar-right').style.width='0%';
   }
 
-  // Live readouts
   document.getElementById('lv-speed').textContent=~~Math.abs(velocity);
-  const pl=attempt ? attempt.phase : 'IDLE';
-  document.getElementById('lv-phase').textContent=pl;
-  document.getElementById('hdr-phase').textContent=pl;
+  document.getElementById('lv-phase').textContent=phase;
+  document.getElementById('hdr-phase').textContent=phase;
 
-  // Hide instructions after first real movement
   if (attempt && attempt.peakSpeed>15) {
     const el=document.getElementById('instructions');
     if(el) el.style.display='none';
@@ -722,20 +698,25 @@ function computeAverages() {
   const gap = real.filter(h=>h.gapMs>0).map(h=>h.gapMs);
   const ovl = real.filter(h=>h.overlapMs>0).map(h=>h.overlapMs);
 
-  document.getElementById('av-tot-d').textContent = td.length  ? mean(td)+'ms'   : '—';
+  document.getElementById('av-tot-d').textContent  = td.length  ? mean(td)+'ms'   : '—';
   document.getElementById('av-cs').textContent     = cs.length  ? mean(cs)+'ms'   : '—';
   document.getElementById('av-spd').textContent    = mean(real.map(h=>h.speed))+' u/s';
   document.getElementById('av-gap').textContent    = gap.length ? mean(gap)+'ms'  : '—';
   document.getElementById('av-ovl').textContent    = ovl.length ? mean(ovl)+'ms'  : '—';
 }
 
-// Colour bar showing totalDecelMs as fraction of coastMs
 function decelBarStyle(totalDecelMs, coastMs) {
-  const f = Math.min(1, totalDecelMs / (coastMs || 1));
-  // interpolate green→yellow→red
-  let r,g;
-  if (f < 0.5) { r=~~(f*2*230); g=200; }
-  else         { r=230; g=~~((1-(f-.5)*2)*200); }
+  const f = Math.min(1, totalDecelMs / 320);
+  let r, g;
+  if (totalDecelMs <= coastMs) {
+    const p = totalDecelMs / (coastMs || 1);
+    r = ~~(p * 230);
+    g = 200;
+  } else {
+    const p = Math.min(1, (totalDecelMs - coastMs) / (300 - coastMs));
+    r = 230;
+    g = ~~(200 * (1 - p));
+  }
   return `background:rgb(${r},${g},40);width:${~~(f*88)}px`;
 }
 
@@ -744,6 +725,9 @@ function prependRow(rec) {
   if (rec.csMs      > 0) det.push('CS '   +rec.csMs     +'ms');
   if (rec.gapMs     > 0) det.push('gap '  +rec.gapMs    +'ms');
   if (rec.overlapMs > 0) det.push('ovlp ' +rec.overlapMs+'ms');
+  if (rec.stoppedMs > 0) det.push('wait ' +rec.stoppedMs+'ms');
+
+  const detHtml = det.map(d => `<span>${d}</span>`).join('');
 
   const barStyle = rec.isAttempt
     ? `style="${decelBarStyle(rec.totalDecelMs, rec.coastMs)}"` : 'style="display:none"';
@@ -753,7 +737,7 @@ function prependRow(rec) {
   row.innerHTML=
     `<span class="h-num">#${rec.n}</span>`+
     `<span class="h-res" style="color:${rec.color}">${rec.label}</span>`+
-    `<span class="h-det">${det.join('<br>')}<div class="h-decel-bar" ${barStyle}></div></span>`;
+    `<div class="h-det">${detHtml}<div class="h-decel-bar" ${barStyle}></div></div>`;
 
   const list=document.getElementById('hist-list');
   list.insertBefore(row,list.firstChild);
@@ -761,7 +745,7 @@ function prependRow(rec) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  VELOCITY BAR — inject threshold markers once DOM is ready
+//  VELOCITY BAR
 // ═══════════════════════════════════════════════════════════════════
 function initVelBar() {
   const wrap=document.getElementById('velbar-wrap');
@@ -772,13 +756,13 @@ function initVelBar() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  GAME LOOP — VRR safe, delta-time throughout
+//  GAME LOOP
 // ═══════════════════════════════════════════════════════════════════
 let lastTs=null, fpsFrames=0, fpsTimer=0;
 
 function loop(ts) {
   if (lastTs===null) lastTs=ts;
-  const dt=Math.min((ts-lastTs)/1000, 0.05); // 50ms clamp handles tab-wake spikes
+  const dt=Math.min((ts-lastTs)/1000, 0.05);
   lastTs=ts;
 
   fpsFrames++; fpsTimer+=dt;
