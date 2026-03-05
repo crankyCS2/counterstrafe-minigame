@@ -1,112 +1,84 @@
 # pixi-counterstrafe
 
-Counter-Strike 2 counter-strafe trainer built with PIXI.js and a Data-Oriented Design (DOD) architecture. This version is a refactoring of the original trainer, optimized for rendering efficiency and modular logic.
+CS2 movement trainer built with PIXI.js and a data-oriented architecture. The app focuses on counter-strafe timing, reaction drills, lab-style movement sessions, and rhythm-based strafe practice.
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
-- Node.js (v18+)
+- Node.js 18+
 - npm
 
-### Installation
+### Install
 ```bash
-# Clone the repository
 git clone <repository-url>
-cd counterstrafe-minigame/pixi-counterstrafe
-
-# Install dependencies
+cd counterstrafe-minigame
 npm install
 ```
 
-### Development
-Start the Vite development server:
+### Run locally
 ```bash
 npm run dev
 ```
 
-### Build
-Generate a production-ready bundle in the `dist/` directory:
+This README is intentionally focused on local development and validation for contributors.
+
+### Production build
 ```bash
 npm run build
+npm run preview
 ```
 
----
+## What is in this version
 
-## Architecture
+- Five playable modes: **Freestyle**, **Time to Shot**, **Strafe Lab**, **Micro-Strafe**, and **Rhythm**.
+- Shared typed-array state for high-frequency updates and low GC churn.
+- Source-style movement constants and acceleration/friction model.
+- Sidebar analytics for attempts, decel quality, averages, and symmetry.
+- CSV export for regular history and lab sessions.
 
-### Data-Oriented Design (DOD)
-The codebase uses a Data-Oriented approach for game state:
-- **Typed Arrays**: Player physics, input state, and attempt timings are stored in contiguous `Float32Array`, `Uint8Array`, and `Float64Array` buffers in `src/state.js`.
-- **Performance**: Minimizes garbage collection overhead and improves cache locality, supporting high refresh rates.
-- **Indices**: Named constants (e.g., `P_VELOCITY`, `A_START_MS`) are used to access specific fields within these buffers.
-
-### Runtime modules (game-dev view)
-- `state.js`: Physics constants, weapon table, DOD buffers, shared mode state, symmetry log, and rhythm state.
-- `physics.js`: Source-like movement update and the velocity-driven attempt state machine.
-- `logic.js`: Shot handling, classification, TTK timing, history/session logging, and symmetry sampling.
-- `strafelab.js`: Strafe Lab and Micro-Strafe session management and metrics (RTR, distance breakdowns, shot spread).
-- `rhythm.js`: Polyrhythmic metronome presets, schedule builder, and per-frame tick.
-- `renderer.js`: PIXI scene setup, arena grid, tear/circle visuals, TTK overlay, rhythm dots, and drag indicators.
-- `ui.js`: DOM wiring for the sidebar, averages, symmetry panel, CSV export, and lab/rhythm config panels.
-- `main.js`: Bootstraps PIXI, hooks up input, config panels, mode switching, and drives the main loop.
-- `input.js` / `audio.js`: Keyboard/mouse input and Web Audio click generator for the rhythm mode.
-
-### Rendering
-- **PIXI.js v8**: Used for high-performance WebGL/WebGPU rendering.
-- **Visual smoothing**: Character position is decoupled from physics via a lerp-based visual smoother (`P_VISUAL_POS`).
-- **Dynamic shapes**: The character's tear shape and color are procedurally generated based on instantaneous velocity.
-
----
-
-## State Machine
-
-The core game logic in `src/physics.js` is driven by a state machine that manages the lifecycle of a counter-strafe attempt.
-
-### Phases
-1.  **IDLE** (`PHASE.IDLE`):
-    - Initial state. The system waits for velocity to rise above 15 u/s.
-    - Transition to **STRAFING** when `|velocity| > 15`.
-
-2.  **STRAFING** (`PHASE.STRAFING`):
-    - The player is building speed or cruising.
-    - The system monitors for the start of a deceleration attempt.
-    - Transition to **DECELERATING** if `prevSpeed >= MIN_ATTEMPT_SPEED` AND `currentSpeed < prevSpeed - 0.5`.
-
-3.  **DECELERATING** (`PHASE.DECELERATING`):
-    - The timing window is active. The system accumulates `gapMs`, `overlapMs`, and `counterMs` based on key states.
-    - Transition to **STRAFING** (Aborted) if velocity rebuilds past `ACCURATE_THRESH` before a shot is fired.
-    - Transition to **IDLE** after `fireShot()` is called.
-
----
-
-## Modes
+## Gameplay summary by mode
 
 ### Freestyle
-Baseline counter-strafe timing drill: build speed, counter-strafe, then fire as soon as you are under 73 u/s. The sidebar breakdown shows how much of the decel window was clean counter-key vs gap/overlap.
+Core counter-strafe drill. Build lateral speed, counter with the opposite key, then shoot at or below the accurate threshold (73 u/s).
 
-### TTK (Time to Kill)
-Reaction + technique under pressure. While strafing at speed, the arena randomly arms and then flashes a blue glow after a 1.5–10s delay; the time from glow to accurate shot is logged as `ttsMs`. Shooting before the glow is tracked as a "False Start" with its own history rows.
+### Time to Shot
+Reaction scenario. The arena arms, then flashes after a random delay. You are scored on time from cue to accurate shot. Shots before cue are logged as false starts.
 
 ### Strafe Lab
-Wide-peek trainer. Run in a chosen direction to cover the distance quota as fast as possible while landing accurate shots (≤73 u/s). The lab results screen reports completion time, shot accuracy, and shot spread along the run.
+Wide-peek training format. Complete a distance quota quickly while landing accurate shots. Session results include completion time, shot accuracy, average speed at shot, and shot spread.
 
 ### Micro-Strafe
-Micro-movement trainer. ADAD under the threshold, landing shots while staying evasive; the arena circle shows your real position instead of a stylised tear. Lab metrics include **Realistic Time to Ready (RTR)** and **Inaccurate Distance %** based on your own attempt log.
+Low-speed ADAD drill. Stay evasive while avoiding threshold overshoots. Includes realistic time-to-ready and inaccurate-distance metrics, and lets you drag the arena circle to reposition.
 
 ### Rhythm
-Polyrhythmic metronome for movement timing. Reverse direction on accent beats (large dots) and stay in time on sub-beats; presets cover odd signatures (7/8, 11/8) and asymmetric cycles that make your strafing timing harder to read.
+Polyrhythmic timing trainer with presets and custom segment editing. Reverse direction on accents and stay on sub-beats/fill to build less readable movement cadence.
 
----
+## Controls
 
-## Contribution Guide
+- **Move:** `A/D` or `Left/Right Arrow`
+- **Shoot:** `Left Click` or `Space`
+- **Micro-Strafe circle reposition:** drag with mouse
 
-1.  **Keep it DOD**: Avoid adding complex objects or classes to the main physics loop. Use the existing Typed Array buffers in `state.js` for new stateful variables.
-2.  **Respect module boundaries**: Keep physics in `physics.js`, shot/TTK logic in `logic.js`, PIXI drawing in `renderer.js`, and DOM/UI code in `ui.js` / `main.js`. Lab and rhythm behaviour should live in `strafelab.js` and `rhythm.js`.
-3.  **Source heritage**: The movement physics are designed to mimic the Source Engine (CS2). Consult `src/state.js` for the `SV` constants (friction, accelerate, stopspeed).
-4.  **Comment style**: Prefer short comments that capture intent or non-obvious constraints (e.g. why a threshold exists) rather than narrating each line. Add higher-level explanations here in the README when possible.
-5.  **Test changes**: Verify that all modes (Freestyle, TTK, Strafe Lab, Micro-Strafe, Rhythm) still work as expected before opening a PR.
+## Architecture overview
 
----
+- `src/state.js`: constants, typed-array buffers, shared mode/session state, weapon data.
+- `src/physics.js`: movement update and attempt phase transitions.
+- `src/logic.js`: shot resolution, scoring/classification, history + TTS tracking.
+- `src/strafelab.js`: Strafe Lab and Micro-Strafe session lifecycle + metrics.
+- `src/rhythm.js`: rhythm presets, schedule generation, metronome tick/update.
+- `src/renderer.js`: PIXI scene setup and all arena visuals.
+- `src/ui.js`: sidebar rendering, summaries, config controls, CSV export.
+- `src/input.js` and `src/audio.js`: input bindings and rhythm click audio.
+- `src/main.js`: app boot, mode switching, panel wiring, and frame loop.
+
+## Development notes
+
+1. Keep hot-path state in existing typed arrays where possible.
+2. Keep concerns separated by module: physics/logic/renderer/ui.
+3. When adding a mode-specific metric, wire both runtime state and UI output.
+4. Verify mode switching and CSV export after any scoring or state changes.
+5. Use `npm run dev` for local iteration and `npm run build` before opening a PR.
 
 ## License
+
 Project code is licensed under the Mozilla Public License 2.0.
