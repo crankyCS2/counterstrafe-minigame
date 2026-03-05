@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Movement Trainer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-Co0KkC6-.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-But5RyrA.css">
+</head>
+<body>
+<div id="app">
+
+    <!-- ═══════════════════ ARENA -->
+    <div id="arena">
+        <div id="header">
+            <div class="hdr-dot"></div>
+            <div class="hdr-accent">CS2 Movement Trainer</div>
+            <div class="hdr-sep">|</div>
+            <div id="mode-tabs">
+                <button class="mode-tab active" data-mode="freestyle">Freestyle</button>
+                <button class="mode-tab"        data-mode="ttk">Time to Shot</button>
+                <button class="mode-tab"        data-mode="strafelab">Strafe Lab</button>
+                <button class="mode-tab"        data-mode="microstrafe">Micro-Strafe</button>
+                <button class="mode-tab"        data-mode="rhythm">Rhythm</button>
+            </div>
+            <div class="hdr-sep">|</div>
+            <div class="hdr-tag" id="hdr-phase">IDLE</div>
+            <div class="hdr-sep" style="margin-left:auto">|</div>
+            <div class="hdr-tag" id="fps-counter">— fps</div>
+        </div>
+
+        <!-- Lab progress bars — between header and canvas -->
+        <div id="sl-progress" style="display:none">
+            <div class="sl-pb-row">
+                <span class="sl-pb-label">DIST</span>
+                <div class="sl-pb-track"><div class="sl-pb-fill" id="sl-pb-dist"></div></div>
+                <span class="sl-pb-val" id="sl-pb-dist-text">0 / 400 u</span>
+            </div>
+            <div class="sl-pb-row" id="sl-shots-pb-row" style="display:none">
+                <span class="sl-pb-label">SHOTS</span>
+                <div class="sl-pb-track"><div class="sl-pb-fill" id="sl-pb-shots"></div></div>
+                <span class="sl-pb-val" id="sl-pb-shots-text">0 / 5</span>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <!-- Lab results overlay -->
+            <div id="sl-results">
+                <div id="slr-inner">
+                    <div id="slr-title">SESSION COMPLETE</div>
+                    <div id="slr-compare" class="slr-compare"></div>
+                    <div class="slr-row"><span>Time</span><span id="slr-time">—</span></div>
+                    <div class="slr-row"><span>Shots</span><span id="slr-shots">—</span></div>
+                    <div class="slr-row"><span>Shot Accuracy</span><span id="slr-shot-acc">—</span></div>
+                    <div class="slr-row"><span>Avg Speed at Shot</span><span id="slr-avg-spd">—</span></div>
+                    <div class="slr-row"><span>Avg Time to Ready</span><span id="slr-mtr">—</span></div>
+                    <div class="slr-row" id="slr-rtr-row" style="display:none"><span>Realistic Time to Ready</span><span id="slr-rtr">—</span></div>
+                    <div class="slr-row" id="slr-oi-row"  style="display:none"><span>Inaccurate Distance %</span><span id="slr-oi">—</span></div>
+                    <div class="slr-row" id="slr-ss-row"  style="display:none"><span>Shot Spread</span><span id="slr-ss">—</span></div>
+                    <div id="slr-btns">
+                        <button id="sl-res-retry">RETRY</button>
+                        <button id="sl-res-config">BACK TO CONFIG</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="velbar-wrap">
+            <div id="velbar-left"></div>
+            <div id="velbar-right"></div>
+            <div id="vb-center"></div>
+        </div>
+
+        <div id="wasd">
+            <div class="key" data-k="W">W</div>
+            <div class="key" data-k="A">A</div>
+            <div class="key" data-k="S">S</div>
+            <div class="key" data-k="D">D</div>
+        </div>
+
+        <div id="instructions">
+            <p><span>A / D or ← / →</span> — strafe</p>
+            <p><span>LEFT CLICK or SPACE</span> — shoot</p>
+            <p>Strafe → counter-strafe → shoot → repeat</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ SIDEBAR -->
+    <div id="sidebar">
+
+        <!-- ── Live Data ── -->
+        <div class="sb-hdr">
+            <div class="sb-dot accent"></div>Live Data
+        </div>
+        <div id="live-grid">
+            <div class="lc"><div class="lc-label">Speed</div>
+                <div class="lc-val"><span id="lv-speed">0</span><span class="lc-unit"> u/s</span></div></div>
+            <div class="lc"><div class="lc-label">Phase</div>
+                <div class="lc-val" id="lv-phase" style="font-size:10px;padding-top:3px;">IDLE</div></div>
+            <div class="lc"><div class="lc-label">Last Shot</div>
+                <div class="lc-val" id="lv-result" style="font-size:10px;padding-top:3px;">—</div></div>
+            <div class="lc" style="grid-column:1/3"><div class="lc-label">Total Decel Time</div>
+                <div class="lc-val"><span id="lv-total">—</span><span class="lc-unit" id="lv-total-u"></span></div></div>
+            <div class="lc"><div class="lc-label">CS Time</div>
+                <div class="lc-val" style="font-size:13px;padding-top:1px;">
+                    <span id="lv-cs">—</span><span class="lc-unit" id="lv-csu"></span></div></div>
+        </div>
+
+        <div id="bench-strip">
+            <select id="weapon-select" class="weapon-sel">
+                <option value="knife">Knife</option>
+                <option value="deagle">Desert Eagle</option>
+                <option value="m4a4">M4A4</option>
+                <option value="m4a1s">M4A1-S</option>
+                <option value="ak47" selected>AK-47</option>
+                <option value="famas">FAMAS</option>
+                <option value="galil">Galil AR</option>
+                <option value="awp">AWP (Unscoped)</option>
+            </select>
+            <span>CS <b id="bench-cs">—</b></span>
+            <span>Coast <b id="bench-coast">—</b></span>
+        </div>
+
+        <!-- ── About (collapsible, swaps per mode) ── -->
+        <div id="about-section">
+            <div id="about-hdr" class="sb-hdr collapsible-hdr">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="sb-dot yellow"></div>
+                    <span id="about-title">Freestyle</span>
+                </div>
+                <span id="about-toggle" class="collapse-arrow">▼</span>
+            </div>
+            <div id="about-body" class="about-body">
+                <p id="about-text"></p>
+            </div>
+        </div>
+
+        <!-- ── Averages (Freestyle / TTK) ── -->
+        <div id="avg-section">
+            <div class="avg-row ttk-only" style="display:none">
+                <span>Avg Time to Shot</span><span class="avg-val" id="av-tts">—</span>
+            </div>
+            <div class="avg-row"><span>Avg gap time</span><span class="avg-val" id="av-gap">—</span></div>
+            <div class="avg-row"><span>Avg overlap time</span><span class="avg-val" id="av-ovl">—</span></div>
+            <div class="avg-row"><span>One at a time</span><span class="avg-val" id="av-breakdown" style="font-size:9px;">—</span></div>
+            <div class="avg-row"><span>Avg CS duration</span><span class="avg-val" id="av-cs">—</span></div>
+            <div class="avg-row"><span>Avg speed at shot</span><span class="avg-val" id="av-spd">—</span></div>
+            <div class="avg-row" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
+                <span style="color:var(--text)">Success rate</span>
+                <span class="avg-val" id="av-rate" style="color:var(--green)">—</span>
+            </div>
+            <div class="avg-row"><span>Total Shots</span><span class="avg-val" id="av-tot">0</span></div>
+            <div class="avg-row"><span>Total Actions</span><span class="avg-val" id="av-act">0</span></div>
+            <div class="avg-row ttk-only" style="display:none">
+                <span>False Starts</span><span class="avg-val" id="av-false">0</span>
+            </div>
+        </div>
+
+        <!-- ══ LAB CONFIG (Strafe Lab + Micro-Strafe shared) ══ -->
+        <div id="sl-config" style="display:none">
+            <div class="sb-hdr">
+                <div class="sb-dot green"></div>
+                <span id="sl-config-title">Strafe Lab</span>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="sl-cfg-desc" id="sl-config-desc">Wide-peek: run the distance fast, shoot at the threshold.</div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">DIRECTION</span>
+                <div class="sl-dir-row">
+                    <label class="custom-radio">
+                        <input type="radio" name="sl-dir" value="left">
+                        <span class="radio-ring"></span>
+                        <span class="radio-label-text">← Left (A)</span>
+                    </label>
+                    <label class="custom-radio">
+                        <input type="radio" name="sl-dir" value="right" checked>
+                        <span class="radio-ring"></span>
+                        <span class="radio-label-text">Right (D) →</span>
+                    </label>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">DISTANCE QUOTA</span>
+                <div id="sl-quota-presets" class="sl-presets">
+                    <button class="sl-preset" data-v="200">200</button>
+                    <button class="sl-preset active" data-v="400">400</button>
+                    <button class="sl-preset" data-v="800">800</button>
+                </div>
+                <div class="num-input-row">
+                    <button class="num-btn-lg" id="sl-quota-dec">−</button>
+                    <input type="number" id="sl-quota-custom" class="sl-custom-input" value="400" min="50" max="9999">
+                    <button class="num-btn-lg" id="sl-quota-inc">+</button>
+                    <span class="sl-cfg-unit">units</span>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">ACCURATE SHOTS REQUIRED</span>
+                <div id="sl-shots-presets" class="sl-presets">
+                    <button class="sl-preset active" data-v="0">off</button>
+                    <button class="sl-preset" data-v="3">3</button>
+                    <button class="sl-preset" data-v="5">5</button>
+                    <button class="sl-preset" data-v="10">10</button>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <button id="sl-start" class="sl-start-btn">START SESSION</button>
+            </div>
+        </div>
+
+        <!-- ══ RHYTHM CONFIG ══ -->
+        <div id="rhy-config" style="display:none">
+            <div class="sb-hdr">
+                <div class="sb-dot accent"></div>Rhythm
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">PRESETS</span>
+                <div id="rhy-presets" class="rhy-presets-wrap"></div>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="rhy-bpm-row">
+                    <span class="sl-cfg-label">BPM</span>
+                    <button class="num-btn-sm" id="rhy-bpm-dec">−</button>
+                    <input type="range" id="rhy-bpm" min="40" max="300" value="140" class="rhy-slider">
+                    <button class="num-btn-sm" id="rhy-bpm-inc">+</button>
+                    <input type="number" id="rhy-bpm-val" class="rhy-mini-num" value="140" min="40" max="300">
+                </div>
+                <div class="rhy-bpm-row" style="margin-top:6px">
+                    <span class="sl-cfg-label">VOL</span>
+                    <input type="range" id="rhy-vol" min="0" max="100" value="70" class="rhy-slider" style="flex:1">
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="rhy-seg-hdr">
+                    <span class="sl-cfg-label">SEGMENTS <span class="rhy-hint">bars × num/denom · groups</span></span>
+                    <button id="rhy-add-seg" class="rhy-add-btn">+ Add</button>
+                </div>
+                <div id="rhy-seg-table"></div>
+            </div>
+            <div class="sl-cfg-section">
+                <button id="rhy-start" class="sl-start-btn">START</button>
+            </div>
+        </div>
+
+        <!-- ══ SYMMETRY ══ -->
+        <div id="sym-section">
+            <div id="sym-hdr" class="sb-hdr collapsible-hdr">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="sb-dot yellow"></div>Symmetry
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button id="sym-reset-btn" class="sym-reset">reset</button>
+                    <span id="sym-toggle" class="collapse-arrow">▼</span>
+                </div>
+            </div>
+            <div id="sym-body">
+                <div id="sym-grid">
+                    <div class="sym-col">
+                        <div class="sym-col-hdr">← LEFT</div>
+                        <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-l-spd">—</span></div>
+                        <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-l-oat">—</span></div>
+                        <div class="sym-row"><span>Samples</span><span id="sym-l-n">0</span></div>
+                    </div>
+                    <div class="sym-divider"></div>
+                    <div class="sym-col">
+                        <div class="sym-col-hdr">RIGHT →</div>
+                        <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-r-spd">—</span></div>
+                        <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-r-oat">—</span></div>
+                        <div class="sym-row"><span>Samples</span><span id="sym-r-n">0</span></div>
+                    </div>
+                </div>
+                <div id="sym-score-row">
+                    <span class="sym-score-label">SYMMETRY</span>
+                    <span id="sym-score">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- History (Freestyle / TTK) -->
+        <div id="hist-section" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
+            <div id="hist-hdr">SHOT HISTORY</div>
+            <div id="hist-list"></div>
+            <div id="hist-footer">
+                <button id="btn-export">Export History as CSV</button>
+            </div>
+        </div>
+
+    </div><!-- /sidebar -->
+
+</div><!-- /app -->
+</body>
+</html>
