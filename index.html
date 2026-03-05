@@ -1,785 +1,293 @@
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-     License, v. 2.0. If a copy of the MPL was not distributed with this
-     file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CS2 Counter-Strafe Trainer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg0:#080a0c; --bg1:#0d1014; --bg2:#111518; --bg3:#161b1f;
-      --border:#1e2428; --border2:#252b30;
-      --text-dim:#3a4248; --text-mid:#6a7880; --text:#b8c4ca; --text-hi:#dce8ee;
-      --accent:#2a7fff; --accent2:#1a5fcc;
-      --green:#22c55e; --orange:#f97316; --red:#ef4444; --yellow:#eab308;
-    }
-    html, body { height:100%; overflow:hidden; background:var(--bg0);
-      color:var(--text); font-family:'JetBrains Mono','Consolas',monospace; }
-    #app { display:flex; height:100vh; }
-
-    /* ── Arena ── */
-    #arena { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; overflow:hidden; }
-    #header {
-      height:34px; background:var(--bg1); border-bottom:1px solid var(--border);
-      display:flex; align-items:center; padding:0 16px; gap:16px; flex-shrink:0;
-    }
-    .hdr-dot { width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
-    .hdr-accent { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); }
-    .hdr-tag    { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
-    .hdr-sep    { color:var(--border2); }
-    #canvas { flex:1; display:block; cursor:crosshair; }
-
-    /* ── Velocity bar ── */
-    #velbar-wrap { height:3px; background:var(--bg1); position:relative; flex-shrink:0; }
-    #velbar-left,#velbar-right { position:absolute; top:0; height:100%; width:0%; transition:width 0ms; }
-    #velbar-left  { right:50%; background:var(--accent); }
-    #velbar-right { left:50%;  background:var(--accent); }
-    .vb-thresh { position:absolute; top:0; height:100%; width:1px; background:var(--green); opacity:.55; }
-    #vb-center { position:absolute; top:-1px; height:5px; width:1px; background:var(--border2); left:calc(50% - .5px); }
-
-    /* ── WASD display ── */
-    #wasd {
-      position:absolute; bottom:22px; left:50%; transform:translateX(-50%);
-      display:grid; grid-template-columns:repeat(3,36px); grid-template-rows:repeat(2,34px);
-      gap:3px; grid-template-areas:". w ." "a s d";
-    }
-    .key {
-      display:flex; align-items:center; justify-content:center;
-      border:1px solid var(--border); border-radius:4px;
-      background:var(--bg2); color:var(--text-dim);
-      font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.5px;
-      user-select:none; pointer-events:none;
-      transition:background 30ms,color 30ms,border-color 30ms,box-shadow 30ms;
-    }
-    .key[data-k="W"]{grid-area:w} .key[data-k="A"]{grid-area:a}
-    .key[data-k="S"]{grid-area:s} .key[data-k="D"]{grid-area:d}
-    .key.on { background:#0f1f3a; border-color:var(--accent2); color:#6fb3ff; box-shadow:0 0 10px rgba(42,127,255,.25); }
-
-    /* ── Sidebar ── */
-    #sidebar { width:270px; background:var(--bg1); border-left:1px solid var(--border);
-      display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
-    .sb-hdr { height:34px; display:flex; align-items:center; padding:0 14px;
-      border-bottom:1px solid var(--border); font-size:9px; letter-spacing:2.5px;
-      text-transform:uppercase; color:var(--text-dim); gap:8px; flex-shrink:0; }
-
-    /* 6-cell live grid */
-    #live-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px;
-      background:var(--border); border-bottom:1px solid var(--border); flex-shrink:0; }
-    .lc { background:var(--bg1); padding:8px 10px; }
-    .lc-label { font-size:7px; letter-spacing:2px; text-transform:uppercase;
-      color:var(--text-dim); margin-bottom:3px; }
-    .lc-val { font-size:15px; font-weight:700; color:var(--text-hi); line-height:1; }
-    .lc-unit { font-size:9px; font-weight:400; color:var(--text-dim); }
-
-    /* Benchmark strip */
-    #bench-strip {
-      display:flex; align-items:center; padding:6px 14px; gap:12px;
-      border-bottom:1px solid var(--border); flex-shrink:0; font-size:9px;
-      color:var(--text-dim); letter-spacing:1px;
-    }
-    #bench-strip span { color:var(--text-mid); }
-    #bench-strip b    { color:var(--text); font-weight:600; }
-
-    /* Averages */
-    #avg-section { padding:9px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
-    .avg-row { display:flex; justify-content:space-between; align-items:center;
-      padding:3px 0; font-size:10px; color:var(--text-mid); border-bottom:1px solid var(--bg3); }
-    .avg-row:last-child { border-bottom:none; }
-    .avg-val { color:var(--text); font-weight:600; }
-
-    /* History */
-    #hist-hdr { padding:7px 14px 5px; font-size:7.5px; letter-spacing:2px;
-      text-transform:uppercase; color:var(--text-dim); flex-shrink:0; }
-    #hist-list { flex:1; overflow-y:auto; padding:0 6px 8px; }
-    #hist-list::-webkit-scrollbar { width:3px; }
-    #hist-list::-webkit-scrollbar-thumb { background:var(--bg3); border-radius:2px; }
-    .h-row { display:grid; grid-template-columns:22px 74px 1fr; align-items:start;
-      gap:5px; padding:5px 7px; border-radius:3px; margin-bottom:2px;
-      background:var(--bg2); animation:rowIn 150ms ease; }
-    .h-row.no-attempt { opacity:.3; }
-    @keyframes rowIn { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:translateX(0)} }
-    .h-num { color:var(--text-dim); font-size:9px; padding-top:1px; }
-    .h-res { font-weight:700; font-size:10px; }
-    .h-det { color:var(--text-mid); font-size:9px; display:flex; flex-direction:column; gap:2px; }
-    .h-decel-bar { height:2px; border-radius:1px; margin-top:3px; max-width:90px; }
-
-    /* Instructions */
-    #instructions { position:absolute; bottom:110px; left:50%;
-      transform:translateX(-50%); text-align:center; pointer-events:none; }
-    #instructions p { font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
-      color:var(--text-dim); line-height:2.3; }
-    #instructions span { color:var(--text-mid); }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Movement Trainer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="app">
-  <div id="arena">
-    <div id="header">
-      <div class="hdr-dot"></div>
-      <div class="hdr-accent">CS2 Counter-Strafe Trainer</div>
-      <div class="hdr-sep">|</div>
-      <div class="hdr-tag" id="hdr-phase">IDLE</div>
-      <div class="hdr-sep" style="margin-left:auto">|</div>
-      <div class="hdr-tag" id="fps-counter">— fps</div>
+
+    <!-- ═══════════════════ ARENA -->
+    <div id="arena">
+        <div id="header">
+            <div class="hdr-dot"></div>
+            <div class="hdr-accent">CS2 Movement Trainer</div>
+            <div class="hdr-sep">|</div>
+            <div id="mode-tabs">
+                <button class="mode-tab active" data-mode="freestyle">Freestyle</button>
+                <button class="mode-tab"        data-mode="ttk">Time to Shot</button>
+                <button class="mode-tab"        data-mode="strafelab">Strafe Lab</button>
+                <button class="mode-tab"        data-mode="microstrafe">Micro-Strafe</button>
+                <button class="mode-tab"        data-mode="rhythm">Rhythm</button>
+            </div>
+            <div class="hdr-sep">|</div>
+            <div class="hdr-tag" id="hdr-phase">IDLE</div>
+            <div class="hdr-sep" style="margin-left:auto">|</div>
+            <div class="hdr-tag" id="fps-counter">— fps</div>
+        </div>
+
+        <!-- Lab progress bars — between header and canvas -->
+        <div id="sl-progress" style="display:none">
+            <div class="sl-pb-row">
+                <span class="sl-pb-label">DIST</span>
+                <div class="sl-pb-track"><div class="sl-pb-fill" id="sl-pb-dist"></div></div>
+                <span class="sl-pb-val" id="sl-pb-dist-text">0 / 400 u</span>
+            </div>
+            <div class="sl-pb-row" id="sl-shots-pb-row" style="display:none">
+                <span class="sl-pb-label">SHOTS</span>
+                <div class="sl-pb-track"><div class="sl-pb-fill" id="sl-pb-shots"></div></div>
+                <span class="sl-pb-val" id="sl-pb-shots-text">0 / 5</span>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <!-- Lab results overlay -->
+            <div id="sl-results">
+                <div id="slr-inner">
+                    <div id="slr-title">SESSION COMPLETE</div>
+                    <div id="slr-compare" class="slr-compare"></div>
+                    <div class="slr-row"><span>Time</span><span id="slr-time">—</span></div>
+                    <div class="slr-row"><span>Shots</span><span id="slr-shots">—</span></div>
+                    <div class="slr-row"><span>Shot Accuracy</span><span id="slr-shot-acc">—</span></div>
+                    <div class="slr-row"><span>Avg Speed at Shot</span><span id="slr-avg-spd">—</span></div>
+                    <div class="slr-row"><span>Avg Time to Ready</span><span id="slr-mtr">—</span></div>
+                    <div class="slr-row" id="slr-rtr-row" style="display:none"><span>Realistic Time to Ready</span><span id="slr-rtr">—</span></div>
+                    <div class="slr-row" id="slr-oi-row"  style="display:none"><span>Inaccurate Distance %</span><span id="slr-oi">—</span></div>
+                    <div class="slr-row" id="slr-ss-row"  style="display:none"><span>Shot Spread</span><span id="slr-ss">—</span></div>
+                    <div id="slr-btns">
+                        <button id="sl-res-retry">RETRY</button>
+                        <button id="sl-res-config">BACK TO CONFIG</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="velbar-wrap">
+            <div id="velbar-left"></div>
+            <div id="velbar-right"></div>
+            <div id="vb-center"></div>
+        </div>
+
+        <div id="wasd">
+            <div class="key" data-k="W">W</div>
+            <div class="key" data-k="A">A</div>
+            <div class="key" data-k="S">S</div>
+            <div class="key" data-k="D">D</div>
+        </div>
+
+        <div id="instructions">
+            <p><span>A / D or ← / →</span> — strafe</p>
+            <p><span>LEFT CLICK or SPACE</span> — shoot</p>
+            <p>Strafe → counter-strafe → shoot → repeat</p>
+        </div>
     </div>
 
-    <canvas id="canvas"></canvas>
-
-    <div id="velbar-wrap">
-      <div id="velbar-left"></div>
-      <div id="velbar-right"></div>
-      <div id="vb-center"></div>
-    </div>
-
-    <div id="wasd">
-      <div class="key" data-k="W">W</div>
-      <div class="key" data-k="A">A</div>
-      <div class="key" data-k="S">S</div>
-      <div class="key" data-k="D">D</div>
-    </div>
-
-    <div id="instructions">
-      <p><span>A / D  or  ← / →</span> — strafe</p>
-      <p><span>LEFT CLICK  or  SPACE</span> — shoot</p>
-      <p>Strafe → counter-strafe → shoot → repeat</p>
-    </div>
-  </div>
-
-  <div id="sidebar">
-    <div class="sb-hdr">
-      <div style="width:4px;height:4px;background:var(--accent);border-radius:1px;"></div>
-      Live Data
-    </div>
-
-    <div id="live-grid">
-      <div class="lc">
-        <div class="lc-label">Speed</div>
-        <div class="lc-val"><span id="lv-speed">0</span><span class="lc-unit"> u/s</span></div>
-      </div>
-      <div class="lc">
-        <div class="lc-label">Phase</div>
-        <div class="lc-val" id="lv-phase" style="font-size:10px;padding-top:3px;">IDLE</div>
-      </div>
-      <div class="lc">
-        <div class="lc-label">Last Shot</div>
-        <div class="lc-val" id="lv-result" style="font-size:10px;padding-top:3px;">—</div>
-      </div>
-      <div class="lc" style="grid-column:1/3">
-        <div class="lc-label">Total Decel Time</div>
-        <div class="lc-val"><span id="lv-total">—</span><span class="lc-unit" id="lv-total-u"></span></div>
-      </div>
-      <div class="lc">
-        <div class="lc-label">CS Time</div>
-        <div class="lc-val" style="font-size:13px;padding-top:1px;"><span id="lv-cs">—</span><span class="lc-unit" id="lv-csu"></span></div>
-      </div>
-    </div>
-
-    <div id="bench-strip">
-      <span id="bench-weapon">AK-47</span>
-      <span>CS ideal <b id="bench-cs">—</b></span>
-      <span>Coast <b id="bench-coast">—</b></span>
-    </div>
-
-    <div id="avg-section">
-      <div class="avg-row"><span>Avg total decel</span>  <span class="avg-val" id="av-tot-d">—</span></div>
-      <div class="avg-row"><span>Avg CS duration</span>  <span class="avg-val" id="av-cs">—</span></div>
-      <div class="avg-row"><span>Avg speed at shot</span><span class="avg-val" id="av-spd">—</span></div>
-      <div class="avg-row"><span>Avg gap time</span>     <span class="avg-val" id="av-gap">—</span></div>
-      <div class="avg-row"><span>Avg overlap time</span> <span class="avg-val" id="av-ovl">—</span></div>
-      <div class="avg-row"><span>Success rate</span>     <span class="avg-val" id="av-rate">—</span></div>
-      <div class="avg-row"><span>Total shots</span>      <span class="avg-val" id="av-tot">0</span></div>
-    </div>
-
-    <div id="hist-hdr">Shot History</div>
-    <div id="hist-list"></div>
-  </div>
-</div>
-
-<script>
-'use strict';
-
-// ═══════════════════════════════════════════════════════════════════
-//  SOURCE ENGINE PHYSICS CONSTANTS
-// ═══════════════════════════════════════════════════════════════════
-const SV = {
-  friction:      5.2,
-  stopspeed:     80,
-  accelerate:    5.5,
-};
-
-// ═══════════════════════════════════════════════════════════════════
-//  WEAPON CONFIG
-// ═══════════════════════════════════════════════════════════════════
-const WEAPONS = {
-  ak47:  { name:'AK-47',   maxSpeed: 221 },
-  knife: { name:'Knife',   maxSpeed: 250 },
-  awp:   { name:'AWP',     maxSpeed: 200 },
-  m4a4:  { name:'M4A4',    maxSpeed: 221 },
-};
-let WPN = WEAPONS.ak47;
-const ACCURATE_THRESH = 73;
-const MIN_ATTEMPT_SPEED = 85;
-
-// ── Compute benchmark times analytically ──
-function computeCoastMs(maxSpeed) {
-  let t = 0;
-  let v = maxSpeed;
-  const v1 = Math.max(SV.stopspeed, ACCURATE_THRESH);
-  if (v > v1) {
-    t += Math.log(v / v1) / SV.friction;
-    v = v1;
-  }
-  if (v > ACCURATE_THRESH) {
-    t += (v - ACCURATE_THRESH) / (SV.friction * SV.stopspeed);
-  }
-  return t * 1000;
-}
-
-function computeCsMs(maxSpeed) {
-  const A  = SV.accelerate * maxSpeed / SV.friction;
-  const t = -Math.log((ACCURATE_THRESH + A) / (maxSpeed + A)) / SV.friction;
-  return t * 1000;
-}
-
-let COAST_MS, CS_MS;
-function recomputeBenchmarks() {
-  COAST_MS = computeCoastMs(WPN.maxSpeed);
-  CS_MS    = computeCsMs(WPN.maxSpeed);
-  document.getElementById('bench-weapon').textContent = WPN.name;
-  document.getElementById('bench-cs').textContent     = Math.round(CS_MS)  + 'ms';
-  document.getElementById('bench-coast').textContent  = Math.round(COAST_MS) + 'ms';
-
-  const pct = (ACCURATE_THRESH / WPN.maxSpeed) * 50;
-  const l = document.getElementById('vbt-l');
-  const r = document.getElementById('vbt-r');
-  if (l) l.style.right = `calc(50% + ${pct}%)`;
-  if (r) r.style.left  = `calc(50% + ${pct}%)`;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  STATE
-//  velocity  — the only source of truth for phase transitions
-//  keys      — dumb booleans, only used by physics + UI
-//  attempt   — timing accumulator, written each frame, never drives state
-// ═══════════════════════════════════════════════════════════════════
-let velocity  = 0;
-let visualPos = 0;
-const keys    = { a:false, d:false };
-
-// Top-level phase: what is the character actually doing right now?
-//   'IDLE'        — not moving meaningfully
-//   'STRAFING'    — velocity building / cruising in one direction
-//   'DECELERATING'— velocity was at peak, now heading toward zero
-const PHASE = { IDLE:'IDLE', STRAFING:'STRAFING', DECELERATING:'DECELERATING' };
-let phase = PHASE.IDLE;
-
-// Current attempt — accumulates timing data each frame while DECELERATING
-let attempt   = null;
-let feedback  = null;
-const history = [];
-
-function makeAttempt(now) {
-  return {
-    decelStartAt: now,
-    peakSpeed:    Math.abs(velocity),  // capture speed at the moment decel begins
-    dir:          Math.sign(velocity), // direction we were strafing
-    gapMs:      0,  // both keys released
-    overlapMs:  0,  // both keys held
-    counterMs:  0,  // only counter key held
-    stoppedMs:  0,  // velocity ≈ 0, waiting
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  INPUT  — keys ONLY, zero state-machine logic here
-// ═══════════════════════════════════════════════════════════════════
-const A_KEYS = new Set(['a','arrowleft']);
-const D_KEYS = new Set(['d','arrowright']);
-
-document.addEventListener('keydown', e => {
-  if (e.repeat) return;
-  const k = e.key.toLowerCase();
-  const isA = A_KEYS.has(k), isD = D_KEYS.has(k);
-  if (!isA && !isD) return;
-  e.preventDefault();
-  if (isA) keys.a = true;
-  if (isD) keys.d = true;
-  refreshKeyUI();
-});
-
-document.addEventListener('keyup', e => {
-  const k = e.key.toLowerCase();
-  const isA = A_KEYS.has(k), isD = D_KEYS.has(k);
-  if (!isA && !isD) return;
-  e.preventDefault();
-  if (isA) keys.a = false;
-  if (isD) keys.d = false;
-  refreshKeyUI();
-});
-
-document.getElementById('canvas').addEventListener('mousedown', e => { if (e.button === 0) fireShot(); });
-document.addEventListener('keydown', e => { if (e.key === ' ') { e.preventDefault(); fireShot(); } });
-
-// ═══════════════════════════════════════════════════════════════════
-//  FIRE
-// ═══════════════════════════════════════════════════════════════════
-function fireShot() {
-  const now   = performance.now();
-  const speed = Math.abs(velocity);
-  const totalDecelMs = attempt ? Math.round(now - attempt.decelStartAt) : 0;
-
-  const cls = classify(speed, totalDecelMs);
-
-  const rec = {
-    n:            history.length + 1,
-    result:       cls.result,
-    label:        cls.label,
-    color:        cls.color,
-    isSuccess:    cls.isSuccess,
-    isAttempt:    cls.isAttempt,
-    speed:        Math.round(speed),
-    totalDecelMs,
-    csMs:         attempt ? Math.round(attempt.counterMs)  : 0,
-    gapMs:        attempt ? Math.round(attempt.gapMs)      : 0,
-    overlapMs:    attempt ? Math.round(attempt.overlapMs)  : 0,
-    stoppedMs:    attempt ? Math.round(attempt.stoppedMs)  : 0,
-    coastMs:      Math.round(COAST_MS),
-  };
-
-  history.unshift(rec);
-  if (history.length > 50) history.pop();
-  feedback = { label:cls.label, color:cls.color, startMs:now };
-  updateSidebar(rec);
-
-  // Reset — phase will be re-evaluated next physics frame from velocity
-  attempt = null;
-  phase   = PHASE.IDLE;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  CLASSIFY
-// ═══════════════════════════════════════════════════════════════════
-function classify(speed, totalDecelMs) {
-  // Never tried to decelerate (shot mid-strafe, no attempt object)
-  if (!attempt)
-    return { result:'MOVING', label:'Moving', color:'#ef4444', isSuccess:false, isAttempt: speed > ACCURATE_THRESH };
-
-  if (attempt.peakSpeed < MIN_ATTEMPT_SPEED)
-    return { result:'NO_ATTEMPT', label:'No Attempt', color:'#3a4248', isSuccess:false, isAttempt:false };
-
-  if (speed > ACCURATE_THRESH)
-    return { result:'MOVING', label:'Moving', color:'#ef4444', isSuccess:false, isAttempt:true };
-
-  if (totalDecelMs > COAST_MS)
-    return { result:'TOO_SLOW', label:'Too Slow', color:'#ef4444', isSuccess:false, isAttempt:true };
-
-  if (totalDecelMs <= 80)
-    return { result:'PERFECT', label:'Perfect',  color:'#22c55e', isSuccess:true, isAttempt:true };
-  if (totalDecelMs <= 100)
-    return { result:'GOOD',    label:'Good',     color:'#4ade80', isSuccess:true, isAttempt:true };
-  if (totalDecelMs <= 130)
-    return { result:'OK',      label:'OK',       color:'#a3e635', isSuccess:true, isAttempt:true };
-  if (totalDecelMs <= 180)
-    return { result:'SLOW',    label:'Slow',     color:'#facc15', isSuccess:true, isAttempt:true };
-
-  return { result:'COASTED', label:'Coasted', color:'#f97316', isSuccess:true, isAttempt:true };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  PHYSICS + VELOCITY-DRIVEN STATE MACHINE
-//  Called every frame. Velocity changes → state follows. Not the other way.
-// ═══════════════════════════════════════════════════════════════════
-function updatePhysics(dt) {
-  const prevVelocity = velocity;
-  const prevAbsSpd   = Math.abs(prevVelocity);
-
-  // ── Source Engine friction ──
-  if (Math.abs(velocity) > 0) {
-    const control  = Math.max(Math.abs(velocity), SV.stopspeed);
-    const drop     = control * SV.friction * dt;
-    const newSpeed = Math.max(0, Math.abs(velocity) - drop);
-    velocity       = newSpeed === 0 ? 0 : velocity * (newSpeed / Math.abs(velocity));
-  }
-
-  // ── Source Engine acceleration ──
-  const wishdir = (keys.d && !keys.a) ?  1
-                : (keys.a && !keys.d) ? -1 : 0;
-
-  if (wishdir !== 0) {
-    const speedInWish = velocity * wishdir;
-    let addspeed = SV.accelerate * WPN.maxSpeed * dt;
-    addspeed = Math.min(addspeed, WPN.maxSpeed - speedInWish);
-    if (addspeed > 0) velocity += wishdir * addspeed;
-  }
-
-  const absSpd = Math.abs(velocity);
-
-  // ── State machine — driven entirely by what velocity is doing ──
-  switch (phase) {
-    case PHASE.IDLE:
-      if (absSpd > 15) {
-        phase   = PHASE.STRAFING;
-        attempt = null;
-      }
-      break;
-
-    case PHASE.STRAFING:
-      // Track peak while cruising
-      if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, absSpd);
-
-      // Deceleration begins when velocity is meaningfully dropping from a real peak.
-      // Condition: had enough speed to count AND velocity is now clearly falling.
-      // We detect this as: wishdir is not in the same direction as current velocity
-      // (player released key OR pressed counter), causing speed to drop.
-      // Use velocity delta: if absSpd dropped compared to last frame AND we're not
-      // just coasting up to max speed, transition to DECELERATING.
-      {
-        const wasFast    = prevAbsSpd >= MIN_ATTEMPT_SPEED;
-        const nowSlowing = absSpd < prevAbsSpd - 0.5; // meaningful drop this frame
-        if (wasFast && nowSlowing) {
-          phase   = PHASE.DECELERATING;
-          attempt = makeAttempt(performance.now());
-        }
-      }
-      break;
-
-    case PHASE.DECELERATING: {
-      if (!attempt) { phase = PHASE.IDLE; break; } // safety
-
-      const now    = performance.now();
-      const frameMs = dt * 1000;
-
-      // ── Per-frame accumulation: what are the keys doing right now? ──
-      const holdingOrig    = attempt.dir === -1 ? keys.a : keys.d;
-      const holdingCounter = attempt.dir === -1 ? keys.d : keys.a;
-
-      if (absSpd < 3) {
-        attempt.stoppedMs += frameMs;
-      } else if (holdingOrig && holdingCounter) {
-        attempt.overlapMs += frameMs;
-      } else if (!holdingOrig && !holdingCounter) {
-        attempt.gapMs     += frameMs;
-      } else if (holdingCounter && !holdingOrig) {
-        attempt.counterMs += frameMs;
-      }
-      // holdingOrig && !holdingCounter: they re-pressed original key —
-      // velocity will start rebuilding in original dir, handled below.
-
-      // ── Abort detection: velocity rebuilt past threshold in ANY direction ──
-      // This catches:
-      //   • Player held counter too long → overshot, now moving other way
-      //   • Player re-pressed original key → going back to original strafe
-      // Both cases mean they chose to change direction, not shoot.
-      if (absSpd > ACCURATE_THRESH && attempt.peakSpeed >= MIN_ATTEMPT_SPEED) {
-        const velocityRebuilt = absSpd > prevAbsSpd + 0.5; // speed increasing again
-
-        if (velocityRebuilt) {
-          // Log the abort
-          const abortRec = {
-            n:         history.length + 1,
-            result:    'ABORTED',
-            label:     'Changed Dir',
-            color:     '#6a7880',
-            isSuccess: false,
-            isAttempt: true,
-            speed:     Math.round(absSpd),
-            totalDecelMs: Math.round(now - attempt.decelStartAt),
-            csMs:      Math.round(attempt.counterMs),
-            gapMs:     Math.round(attempt.gapMs),
-            overlapMs: Math.round(attempt.overlapMs),
-            stoppedMs: Math.round(attempt.stoppedMs),
-            coastMs:   Math.round(COAST_MS),
-          };
-          history.unshift(abortRec);
-          if (history.length > 50) history.pop();
-          feedback = { label:'Changed Dir', color:'#6a7880', startMs:now };
-          updateSidebar(abortRec);
-
-          // Cleanly restart as a new STRAFING in the new direction
-          phase   = PHASE.STRAFING;
-          attempt = null;
-        }
-      }
-
-      // ── Natural stop: came all the way to zero with no rebuild ──
-      if (absSpd === 0 && attempt) {
-        // Sat at zero — keep accumulating stoppedMs until shot or movement
-        // If they start moving again (caught by IDLE→STRAFING above), attempt resets
-      }
-
-      // ── Return to IDLE if velocity has been zero long enough ──
-      if (absSpd === 0 && (!keys.a && !keys.d)) {
-        // Don't reset attempt here — player may still shoot from stopped position
-        // Phase stays DECELERATING so a shot is still classified correctly
-      }
-
-      break;
-    }
-  }
-
-  // If we left DECELERATING for STRAFING (abort), the new STRAFING has no attempt.
-  // That's correct — we need to build speed before tracking a new decel.
-
-  // Update peak speed continuously (also needed for STRAFING→DECEL transition)
-  if (attempt) attempt.peakSpeed = Math.max(attempt.peakSpeed, absSpd);
-
-  // Visual smoothing
-  const MAX_DISP = 148;
-  const target   = (velocity / WPN.maxSpeed) * MAX_DISP;
-  visualPos     += (target - visualPos) * Math.min(1, 9 * dt);
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  RENDERING
-// ═══════════════════════════════════════════════════════════════════
-const canvas = document.getElementById('canvas');
-const ctx    = canvas.getContext('2d', { alpha:false });
-let dpr = devicePixelRatio || 1;
-
-function resizeCanvas() {
-  dpr = devicePixelRatio || 1;
-  canvas.width  = Math.round(canvas.clientWidth  * dpr);
-  canvas.height = Math.round(canvas.clientHeight * dpr);
-}
-window.addEventListener('resize', resizeCanvas);
-new ResizeObserver(resizeCanvas).observe(canvas);
-resizeCanvas();
-
-function drawTear(cx, cy, R, vel) {
-  const absV = Math.abs(vel);
-  if (absV < 2) { ctx.arc(cx, cy, R, 0, Math.PI * 2); return; }
-
-  const t   = Math.pow(absV / WPN.maxSpeed, 0.58);
-  const dir = vel > 0 ? 1 : -1;
-
-  const frontX = cx + dir * R * (1 + 0.60 * t);
-  const backX  = cx - dir * R * (1 - 0.10 * t);
-  const sX     = cx + dir * R * 0.02 * t;
-  const h      = R  * (1 - 0.30 * t);
-
-  ctx.moveTo(frontX, cy);
-  ctx.bezierCurveTo(frontX, cy-h*.50,  sX+dir*R*.38, cy-h,  sX, cy-h);
-  ctx.bezierCurveTo(sX-dir*R*.52, cy-h,  backX, cy-h*.18,  backX, cy);
-  ctx.bezierCurveTo(backX, cy+h*.18,  sX-dir*R*.52, cy+h,  sX, cy+h);
-  ctx.bezierCurveTo(sX+dir*R*.38, cy+h,  frontX, cy+h*.50,  frontX, cy);
-  ctx.closePath();
-}
-
-function getColor(absV) {
-  if (absV <= ACCURATE_THRESH)
-    return lerp3([34,197,94],[200,212,218], absV/ACCURATE_THRESH);
-  return lerp3([200,212,218],[249,115,22], (absV-ACCURATE_THRESH)/(WPN.maxSpeed-ACCURATE_THRESH));
-}
-function lerp3(a, b, t) {
-  return `rgb(${~~(a[0]+(b[0]-a[0])*t)},${~~(a[1]+(b[1]-a[1])*t)},${~~(a[2]+(b[2]-a[2])*t)})`;
-}
-function lighten(rgb, amt) {
-  const m = rgb.match(/\d+/g);
-  return `rgb(${Math.min(255,~~(+m[0]+(255-+m[0])*amt))},${Math.min(255,~~(+m[1]+(255-+m[1])*amt))},${Math.min(255,~~(+m[2]+(255-+m[2])*amt))})`;
-}
-
-function render(ts) {
-  const W=canvas.width, H=canvas.height, cx=W*.5, cy=H*.5;
-
-  ctx.fillStyle='#080a0c'; ctx.fillRect(0,0,W,H);
-
-  ctx.strokeStyle='#0e1214'; ctx.lineWidth=1;
-  const gs=48*dpr;
-  for(let x=cx%gs;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-  for(let y=cy%gs;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-
-  ctx.strokeStyle='#161c20';
-  ctx.beginPath();ctx.moveTo(cx-18,cy);ctx.lineTo(cx+18,cy);
-  ctx.moveTo(cx,cy-18);ctx.lineTo(cx,cy+18);ctx.stroke();
-
-  const bx  = cx + visualPos * dpr;
-  const R   = 40 * dpr;
-  const col = getColor(Math.abs(velocity));
-
-  ctx.save();
-  ctx.beginPath(); drawTear(bx,cy,R*1.5,velocity);
-  ctx.fillStyle=col.replace('rgb','rgba').replace(')',',.055)'); ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.shadowColor=col; ctx.shadowBlur=20*dpr;
-  ctx.beginPath(); drawTear(bx,cy,R,velocity);
-  ctx.fillStyle=col; ctx.fill();
-  ctx.shadowBlur=0;
-  ctx.strokeStyle=lighten(col,.32); ctx.lineWidth=1.5; ctx.stroke();
-  ctx.restore();
-
-  if (feedback) {
-    const elapsed=ts-feedback.startMs, dur=700;
-    if (elapsed<dur) {
-      const t=elapsed/dur;
-      ctx.save();
-      // Removed the Math.min(1, elapsed/70) fade-in effect. Text pops instantly.
-      ctx.globalAlpha=Math.pow(1-t,1.5);
-      ctx.font=`700 ${~~(24*dpr)}px 'JetBrains Mono',monospace`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.shadowColor=feedback.color; ctx.shadowBlur=12*dpr;
-      ctx.fillStyle=feedback.color;
-      ctx.fillText(feedback.label, cx, cy-R*2.3-t*R*.6);
-      ctx.restore();
-    } else { feedback=null; }
-  }
-
-  const pct=Math.abs(velocity)/WPN.maxSpeed*50;
-  if (velocity>=0) {
-    document.getElementById('velbar-right').style.width=pct+'%';
-    document.getElementById('velbar-left').style.width='0%';
-  } else {
-    document.getElementById('velbar-left').style.width=pct+'%';
-    document.getElementById('velbar-right').style.width='0%';
-  }
-
-  document.getElementById('lv-speed').textContent=~~Math.abs(velocity);
-  document.getElementById('lv-phase').textContent=phase;
-  document.getElementById('hdr-phase').textContent=phase;
-
-  if (attempt && attempt.peakSpeed>15) {
-    const el=document.getElementById('instructions');
-    if(el) el.style.display='none';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  SIDEBAR / DOM
-// ═══════════════════════════════════════════════════════════════════
-const $a=document.querySelector('[data-k="A"]');
-const $d=document.querySelector('[data-k="D"]');
-function refreshKeyUI() {
-  $a.classList.toggle('on',keys.a);
-  $d.classList.toggle('on',keys.d);
-}
-
-function updateSidebar(rec) {
-  const lv=document.getElementById('lv-result');
-  lv.textContent=rec.label; lv.style.color=rec.color;
-
-  if (rec.totalDecelMs > 0) {
-    document.getElementById('lv-total').textContent  = rec.totalDecelMs;
-    document.getElementById('lv-total-u').textContent= ' ms';
-  } else {
-    document.getElementById('lv-total').textContent  = '—';
-    document.getElementById('lv-total-u').textContent= '';
-  }
-
-  if (rec.csMs > 0) {
-    document.getElementById('lv-cs').textContent  = rec.csMs;
-    document.getElementById('lv-csu').textContent = ' ms';
-  } else {
-    document.getElementById('lv-cs').textContent  = '—';
-    document.getElementById('lv-csu').textContent = '';
-  }
-
-  computeAverages();
-  prependRow(rec);
-}
-
-function computeAverages() {
-  const real=history.filter(h=>h.isAttempt);
-  document.getElementById('av-tot').textContent=real.length;
-  if(!real.length) return;
-
-  const succ=real.filter(h=>h.isSuccess).length;
-  document.getElementById('av-rate').textContent=~~(succ/real.length*100)+'%';
-
-  const mean=arr=>arr.length ? ~~(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
-
-  const td  = real.filter(h=>h.totalDecelMs>0).map(h=>h.totalDecelMs);
-  const cs  = real.filter(h=>h.csMs>0).map(h=>h.csMs);
-  const gap = real.filter(h=>h.gapMs>0).map(h=>h.gapMs);
-  const ovl = real.filter(h=>h.overlapMs>0).map(h=>h.overlapMs);
-
-  document.getElementById('av-tot-d').textContent  = td.length  ? mean(td)+'ms'   : '—';
-  document.getElementById('av-cs').textContent     = cs.length  ? mean(cs)+'ms'   : '—';
-  document.getElementById('av-spd').textContent    = mean(real.map(h=>h.speed))+' u/s';
-  document.getElementById('av-gap').textContent    = gap.length ? mean(gap)+'ms'  : '—';
-  document.getElementById('av-ovl').textContent    = ovl.length ? mean(ovl)+'ms'  : '—';
-}
-
-function decelBarStyle(totalDecelMs, coastMs) {
-  const f = Math.min(1, totalDecelMs / 320);
-  let r, g;
-  if (totalDecelMs <= coastMs) {
-    const p = totalDecelMs / (coastMs || 1);
-    r = ~~(p * 230);
-    g = 200;
-  } else {
-    const p = Math.min(1, (totalDecelMs - coastMs) / (300 - coastMs));
-    r = 230;
-    g = ~~(200 * (1 - p));
-  }
-  return `background:rgb(${r},${g},40);width:${~~(f*88)}px`;
-}
-
-function prependRow(rec) {
-  const det = [rec.speed+' u/s', 'total '+rec.totalDecelMs+'ms'];
-  if (rec.csMs      > 0) det.push('CS '   +rec.csMs     +'ms');
-  if (rec.gapMs     > 0) det.push('gap '  +rec.gapMs    +'ms');
-  if (rec.overlapMs > 0) det.push('ovlp ' +rec.overlapMs+'ms');
-  if (rec.stoppedMs > 0) det.push('wait ' +rec.stoppedMs+'ms');
-
-  const detHtml = det.map(d => `<span>${d}</span>`).join('');
-
-  const barStyle = rec.isAttempt
-    ? `style="${decelBarStyle(rec.totalDecelMs, rec.coastMs)}"` : 'style="display:none"';
-
-  const row=document.createElement('div');
-  row.className='h-row'+(rec.isAttempt?'':' no-attempt');
-  row.innerHTML=
-    `<span class="h-num">#${rec.n}</span>`+
-    `<span class="h-res" style="color:${rec.color}">${rec.label}</span>`+
-    `<div class="h-det">${detHtml}<div class="h-decel-bar" ${barStyle}></div></div>`;
-
-  const list=document.getElementById('hist-list');
-  list.insertBefore(row,list.firstChild);
-  while(list.children.length>50) list.removeChild(list.lastChild);
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  VELOCITY BAR
-// ═══════════════════════════════════════════════════════════════════
-function initVelBar() {
-  const wrap=document.getElementById('velbar-wrap');
-  ['vbt-l','vbt-r'].forEach(id=>{
-    const el=document.createElement('div');
-    el.id=id; el.className='vb-thresh'; wrap.appendChild(el);
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  GAME LOOP
-// ═══════════════════════════════════════════════════════════════════
-let lastTs=null, fpsFrames=0, fpsTimer=0;
-
-function loop(ts) {
-  if (lastTs===null) lastTs=ts;
-  const dt=Math.min((ts-lastTs)/1000, 0.05);
-  lastTs=ts;
-
-  fpsFrames++; fpsTimer+=dt;
-  if (fpsTimer>=1) {
-    document.getElementById('fps-counter').textContent=fpsFrames+' fps';
-    fpsFrames=0; fpsTimer-=1;
-  }
-
-  updatePhysics(dt);
-  render(ts);
-  requestAnimationFrame(loop);
-}
-
-// ── Boot ──
-initVelBar();
-recomputeBenchmarks();
-requestAnimationFrame(loop);
-</script>
+    <!-- ═══════════════════ SIDEBAR -->
+    <div id="sidebar">
+
+        <!-- ── Live Data ── -->
+        <div class="sb-hdr">
+            <div class="sb-dot accent"></div>Live Data
+        </div>
+        <div id="live-grid">
+            <div class="lc"><div class="lc-label">Speed</div>
+                <div class="lc-val"><span id="lv-speed">0</span><span class="lc-unit"> u/s</span></div></div>
+            <div class="lc"><div class="lc-label">Phase</div>
+                <div class="lc-val" id="lv-phase" style="font-size:10px;padding-top:3px;">IDLE</div></div>
+            <div class="lc"><div class="lc-label">Last Shot</div>
+                <div class="lc-val" id="lv-result" style="font-size:10px;padding-top:3px;">—</div></div>
+            <div class="lc" style="grid-column:1/3"><div class="lc-label">Total Decel Time</div>
+                <div class="lc-val"><span id="lv-total">—</span><span class="lc-unit" id="lv-total-u"></span></div></div>
+            <div class="lc"><div class="lc-label">CS Time</div>
+                <div class="lc-val" style="font-size:13px;padding-top:1px;">
+                    <span id="lv-cs">—</span><span class="lc-unit" id="lv-csu"></span></div></div>
+        </div>
+
+        <div id="bench-strip">
+            <select id="weapon-select" class="weapon-sel">
+                <option value="knife">Knife</option>
+                <option value="deagle">Desert Eagle</option>
+                <option value="m4a4">M4A4</option>
+                <option value="m4a1s">M4A1-S</option>
+                <option value="ak47" selected>AK-47</option>
+                <option value="famas">FAMAS</option>
+                <option value="galil">Galil AR</option>
+                <option value="awp">AWP (Unscoped)</option>
+            </select>
+            <span>CS <b id="bench-cs">—</b></span>
+            <span>Coast <b id="bench-coast">—</b></span>
+        </div>
+
+        <!-- ── About (collapsible, swaps per mode) ── -->
+        <div id="about-section">
+            <div id="about-hdr" class="sb-hdr collapsible-hdr">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="sb-dot yellow"></div>
+                    <span id="about-title">Freestyle</span>
+                </div>
+                <span id="about-toggle" class="collapse-arrow">▼</span>
+            </div>
+            <div id="about-body" class="about-body">
+                <p id="about-text"></p>
+            </div>
+        </div>
+
+        <!-- ── Averages (Freestyle / TTK) ── -->
+        <div id="avg-section">
+            <div class="avg-row ttk-only" style="display:none">
+                <span>Avg Time to Shot</span><span class="avg-val" id="av-tts">—</span>
+            </div>
+            <div class="avg-row"><span>Avg gap time</span><span class="avg-val" id="av-gap">—</span></div>
+            <div class="avg-row"><span>Avg overlap time</span><span class="avg-val" id="av-ovl">—</span></div>
+            <div class="avg-row"><span>One at a time</span><span class="avg-val" id="av-breakdown" style="font-size:9px;">—</span></div>
+            <div class="avg-row"><span>Avg CS duration</span><span class="avg-val" id="av-cs">—</span></div>
+            <div class="avg-row"><span>Avg speed at shot</span><span class="avg-val" id="av-spd">—</span></div>
+            <div class="avg-row" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
+                <span style="color:var(--text)">Success rate</span>
+                <span class="avg-val" id="av-rate" style="color:var(--green)">—</span>
+            </div>
+            <div class="avg-row"><span>Total Shots</span><span class="avg-val" id="av-tot">0</span></div>
+            <div class="avg-row"><span>Total Actions</span><span class="avg-val" id="av-act">0</span></div>
+            <div class="avg-row ttk-only" style="display:none">
+                <span>False Starts</span><span class="avg-val" id="av-false">0</span>
+            </div>
+        </div>
+
+        <!-- ══ LAB CONFIG (Strafe Lab + Micro-Strafe shared) ══ -->
+        <div id="sl-config" style="display:none">
+            <div class="sb-hdr">
+                <div class="sb-dot green"></div>
+                <span id="sl-config-title">Strafe Lab</span>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="sl-cfg-desc" id="sl-config-desc">Wide-peek: run the distance fast, shoot at the threshold.</div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">DIRECTION</span>
+                <div class="sl-dir-row">
+                    <label class="custom-radio">
+                        <input type="radio" name="sl-dir" value="left">
+                        <span class="radio-ring"></span>
+                        <span class="radio-label-text">← Left (A)</span>
+                    </label>
+                    <label class="custom-radio">
+                        <input type="radio" name="sl-dir" value="right" checked>
+                        <span class="radio-ring"></span>
+                        <span class="radio-label-text">Right (D) →</span>
+                    </label>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">DISTANCE QUOTA</span>
+                <div id="sl-quota-presets" class="sl-presets">
+                    <button class="sl-preset" data-v="200">200</button>
+                    <button class="sl-preset active" data-v="400">400</button>
+                    <button class="sl-preset" data-v="800">800</button>
+                </div>
+                <div class="num-input-row">
+                    <button class="num-btn-lg" id="sl-quota-dec">−</button>
+                    <input type="number" id="sl-quota-custom" class="sl-custom-input" value="400" min="50" max="9999">
+                    <button class="num-btn-lg" id="sl-quota-inc">+</button>
+                    <span class="sl-cfg-unit">units</span>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">ACCURATE SHOTS REQUIRED</span>
+                <div id="sl-shots-presets" class="sl-presets">
+                    <button class="sl-preset active" data-v="0">off</button>
+                    <button class="sl-preset" data-v="3">3</button>
+                    <button class="sl-preset" data-v="5">5</button>
+                    <button class="sl-preset" data-v="10">10</button>
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <button id="sl-start" class="sl-start-btn">START SESSION</button>
+            </div>
+        </div>
+
+        <!-- ══ RHYTHM CONFIG ══ -->
+        <div id="rhy-config" style="display:none">
+            <div class="sb-hdr">
+                <div class="sb-dot accent"></div>Rhythm
+            </div>
+            <div class="sl-cfg-section">
+                <span class="sl-cfg-label">PRESETS</span>
+                <div id="rhy-presets" class="rhy-presets-wrap"></div>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="rhy-bpm-row">
+                    <span class="sl-cfg-label">BPM</span>
+                    <button class="num-btn-sm" id="rhy-bpm-dec">−</button>
+                    <input type="range" id="rhy-bpm" min="40" max="300" value="140" class="rhy-slider">
+                    <button class="num-btn-sm" id="rhy-bpm-inc">+</button>
+                    <input type="number" id="rhy-bpm-val" class="rhy-mini-num" value="140" min="40" max="300">
+                </div>
+                <div class="rhy-bpm-row" style="margin-top:6px">
+                    <span class="sl-cfg-label">VOL</span>
+                    <input type="range" id="rhy-vol" min="0" max="100" value="70" class="rhy-slider" style="flex:1">
+                </div>
+            </div>
+            <div class="sl-cfg-section">
+                <div class="rhy-seg-hdr">
+                    <span class="sl-cfg-label">SEGMENTS <span class="rhy-hint">bars × num/denom · groups</span></span>
+                    <button id="rhy-add-seg" class="rhy-add-btn">+ Add</button>
+                </div>
+                <div id="rhy-seg-table"></div>
+            </div>
+            <div class="sl-cfg-section">
+                <button id="rhy-start" class="sl-start-btn">START</button>
+            </div>
+        </div>
+
+        <!-- ══ SYMMETRY ══ -->
+        <div id="sym-section">
+            <div id="sym-hdr" class="sb-hdr collapsible-hdr">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="sb-dot yellow"></div>Symmetry
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button id="sym-reset-btn" class="sym-reset">reset</button>
+                    <span id="sym-toggle" class="collapse-arrow">▼</span>
+                </div>
+            </div>
+            <div id="sym-body">
+                <div id="sym-grid">
+                    <div class="sym-col">
+                        <div class="sym-col-hdr">← LEFT</div>
+                        <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-l-spd">—</span></div>
+                        <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-l-oat">—</span></div>
+                        <div class="sym-row"><span>Samples</span><span id="sym-l-n">0</span></div>
+                    </div>
+                    <div class="sym-divider"></div>
+                    <div class="sym-col">
+                        <div class="sym-col-hdr">RIGHT →</div>
+                        <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-r-spd">—</span></div>
+                        <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-r-oat">—</span></div>
+                        <div class="sym-row"><span>Samples</span><span id="sym-r-n">0</span></div>
+                    </div>
+                </div>
+                <div id="sym-score-row">
+                    <span class="sym-score-label">SYMMETRY</span>
+                    <span id="sym-score">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- History (Freestyle / TTK) -->
+        <div id="hist-section" style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
+            <div id="hist-hdr">SHOT HISTORY</div>
+            <div id="hist-list"></div>
+            <div id="hist-footer">
+                <button id="btn-export">Export History as CSV</button>
+            </div>
+        </div>
+
+    </div><!-- /sidebar -->
+
+</div><!-- /app -->
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
