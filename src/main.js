@@ -2,7 +2,7 @@ import './style.css';
 import {
     recomputeBenchmarks, WEAPONS, STATE, MODE, TIMING,
     StrafeLab, MicroStrafe, RhythmState, SymmetryLog,
-    PlayerState, P_VELOCITY, P_VELOCITY_Y,
+    PlayerState, P_VELOCITY, P_VELOCITY_Y, P_VISUAL_POS_Y,
     MicroStrafeVisuals,
 } from './state.js';
 import { initInput }                              from './input.js';
@@ -89,6 +89,10 @@ async function boot() {
             dimTabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             STATE.mode2D = tab.dataset.dim === '2D';
+            if (!STATE.mode2D) {
+                PlayerState[P_VELOCITY_Y]   = 0;
+                PlayerState[P_VISUAL_POS_Y] = 0;
+            }
         });
     });
 
@@ -165,6 +169,15 @@ async function boot() {
     document.getElementById('about-hdr').addEventListener('click', () => {
         const body   = document.getElementById('about-body');
         const toggle = document.getElementById('about-toggle');
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? 'block' : 'none';
+        toggle.textContent = hidden ? '▼' : '▶';
+    });
+
+    // ── Averages collapse toggle ──
+    document.getElementById('avg-hdr').addEventListener('click', () => {
+        const body   = document.getElementById('avg-body');
+        const toggle = document.getElementById('avg-toggle');
         const hidden = body.style.display === 'none';
         body.style.display = hidden ? 'block' : 'none';
         toggle.textContent = hidden ? '▼' : '▶';

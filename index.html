@@ -141,6 +141,14 @@
 
         <!-- ── Averages (Freestyle / TTK) ── -->
         <div id="avg-section">
+            <div id="avg-hdr" class="sb-hdr collapsible-hdr">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="sb-dot accent"></div>
+                    <span>Averages</span>
+                </div>
+                <span id="avg-toggle" class="collapse-arrow">▼</span>
+            </div>
+            <div id="avg-body">
             <div class="avg-row ttk-only" style="display:none">
                 <span>Avg Time to Shot</span><span class="avg-val" id="av-tts">—</span>
             </div>
@@ -157,6 +165,7 @@
             <div class="avg-row"><span>Total Actions</span><span class="avg-val" id="av-act">0</span></div>
             <div class="avg-row ttk-only" style="display:none">
                 <span>False Starts</span><span class="avg-val" id="av-false">0</span>
+            </div>
             </div>
         </div>
 
@@ -261,14 +270,14 @@
             <div id="sym-body">
                 <div id="sym-grid">
                     <div class="sym-col">
-                        <div class="sym-col-hdr">← LEFT</div>
+                        <div class="sym-col-hdr" title="A-key / W-key dominant direction">← / ↑</div>
                         <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-l-spd">—</span></div>
                         <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-l-oat">—</span></div>
                         <div class="sym-row"><span>Samples</span><span id="sym-l-n">0</span></div>
                     </div>
                     <div class="sym-divider"></div>
                     <div class="sym-col">
-                        <div class="sym-col-hdr">RIGHT →</div>
+                        <div class="sym-col-hdr" title="D-key / S-key dominant direction">→ / ↓</div>
                         <div class="sym-row"><span>Avg Spd@Shot</span><span id="sym-r-spd">—</span></div>
                         <div class="sym-row"><span>Avg One-at-Time</span><span id="sym-r-oat">—</span></div>
                         <div class="sym-row"><span>Samples</span><span id="sym-r-n">0</span></div>

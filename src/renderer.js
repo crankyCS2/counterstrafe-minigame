@@ -291,8 +291,7 @@ export function renderPixi(ts) {
     drawRhythmGrid(ts);
 
     tearGraphics.clear();
-    const vel  = PlayerState[P_VELOCITY];
-    const absV = Math.abs(vel);
+    const absV = Math.hypot(PlayerState[P_VELOCITY], STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0);
     const col  = getColor(absV);
     const R    = 40;
 

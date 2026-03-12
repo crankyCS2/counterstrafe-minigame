@@ -77,7 +77,7 @@ export function updatePhysics(dt, updateSidebarCallback) {
                 PlayerState[P_PHASE]              = PHASE.DECELERATING;
                 AttemptState[A_ACTIVE]            = 1;
                 AttemptState[A_START_MS]          = performance.now();
-                AttemptState[A_PEAK_SPEED]        = absSpd;
+                AttemptState[A_PEAK_SPEED]        = prevAbsSpd;
                 
                 // Direction of peak speed
                 if (absSpd > 0) {
@@ -144,6 +144,8 @@ export function updatePhysics(dt, updateSidebarCallback) {
             } else if (dot > 0.1) {
                 AttemptState[A_OVERLAP_MS] += frameMs; // Holding forward again/overlap
             } else {
+                // Dead zone: single key at near-perpendicular angle (|dot| ≤ 0.1).
+                // Treated as overlap since you haven't released all keys or counter-strafed.
                 AttemptState[A_OVERLAP_MS] += frameMs;
             }
 

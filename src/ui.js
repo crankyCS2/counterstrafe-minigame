@@ -181,7 +181,12 @@ export function updateLiveDOM() {
     if (keyS) keyS.classList.toggle('on', InputState[IN_S] === 1);
 
     const pct = absSpd / STATE.WPN.maxSpeed * 50;
-    if (PlayerState[P_VELOCITY] >= 0) {
+    if (STATE.mode2D) {
+        // In 2D mode: show total magnitude on both sides equally (no left/right bias)
+        const halfPct = pct;
+        document.getElementById('velbar-right').style.width = halfPct + '%';
+        document.getElementById('velbar-left').style.width  = halfPct + '%';
+    } else if (vx >= 0) {
         document.getElementById('velbar-right').style.width = pct + '%';
         document.getElementById('velbar-left').style.width  = '0%';
     } else {
