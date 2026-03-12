@@ -358,7 +358,7 @@ export function syncLabConfig(mode) {
     const startBtn = document.getElementById('sl-start');
     if (!startBtn) return;
 
-    const inputs = document.querySelectorAll('#sl-config input:not([type=radio]), #sl-config .sl-preset');
+    const inputs = document.querySelectorAll('#sl-config input, #sl-config .sl-preset');
     if (lab.active) {
         startBtn.textContent = 'STOP SESSION';
         startBtn.classList.add('sl-stop');

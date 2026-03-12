@@ -138,15 +138,37 @@ export function tickLabFrame(dt, vx, vy) {
     const absV       = Math.hypot(vx, vy);
     const frameMs    = dt * 1000;
     
-    // Check direction based on the current mode and dominant velocity
+    // Parse target vector from string (e.g. "up-left", "right")
+    let tx = 0, ty = 0;
+    const dir = lab.direction || 'right'; // Default if unset
+    if (dir.includes('left')) tx = -1;
+    if (dir.includes('right')) tx = 1;
+    if (dir.includes('up')) ty = -1;
+    if (dir.includes('down')) ty = 1;
+
+    // Normalize target vector if literal diagonal (for dot product scalar mapping later if needed)
+    const tMag = Math.hypot(tx, ty) || 1;
+    tx /= tMag; 
+    ty /= tMag;
+
+    // Determine current general movement alignment via dot product
+    // We normalize velocity so speed doesn't skew the directional filter
+    const vMag = Math.hypot(vx, vy);
     let curSign = 0;
-    if (Math.abs(vx) > Math.abs(vy) || !STATE.mode2D) {
-        curSign = Math.sign(vx);
-    } else {
-        curSign = Math.sign(vy); // Primary vertical progression
+    if (vMag > 0.1) {
+        const dot = ((vx / vMag) * tx) + ((vy / vMag) * ty);
+        // If movement is generally in the target direction (dot > 0.5 roughly 45 degrees)
+        // Or if pure 1D mode, fallback to strict horizontal check to prevent bugs
+        if (!STATE.mode2D) {
+            curSign = Math.sign(vx) === Math.sign(tx) ? 1 : (Math.sign(vx) === -Math.sign(tx) ? -1 : 0);
+        } else {
+            if (dot > 0.5) curSign = 1;
+            else if (dot < -0.5) curSign = -1;
+        }
     }
 
-    const targetSign = lab.direction === 'right' ? 1 : -1;
+    // Always 1 if we match direction. We only accrue if `curSign === 1`
+    const targetSign = 1;
 
     // Accumulate distance only in target direction, any speed
     if (curSign === targetSign && absV > 0) {
