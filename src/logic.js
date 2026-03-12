@@ -149,7 +149,8 @@ export function fireShot(now, updateSidebarCallback) {
     // ── Lab modes: record event, no history row ──
     if (isLabMode) {
         const wasAccurate = speed <= STATE.ACCURATE_THRESH;
-        recordLabShotEvent(speed, wasAccurate, getAttemptData());
+        const attemptData = AttemptState[A_ACTIVE] === 1 ? getAttemptData() : null;
+        recordLabShotEvent(speed, wasAccurate, attemptData);
         logSymmetry(speed);
 
         // Feedback: delta from accuracy threshold (− = margin under, + = overshoot)
@@ -192,6 +193,7 @@ export function fireShot(now, updateSidebarCallback) {
         coastMs:      Math.round(STATE.COAST_MS),
         ttsMs,
         weapon:       STATE.WPN.id,
+        maxSpeed:     STATE.WPN.maxSpeed,
     };
 
     history.unshift(rec);
@@ -216,7 +218,7 @@ export function abortAttempt(now, speed, updateSidebarCallback) {
     // In lab modes, log the attempt data for RTR but don't push a history row
     if (isLabMode) {
         logSymmetry(speed);
-        recordLabAbortEvent(getAttemptData());
+        if (AttemptState[A_ACTIVE] === 1) recordLabAbortEvent(getAttemptData());
         PlayerState[P_PHASE]   = PHASE.STRAFING;
         AttemptState[A_ACTIVE] = 0;
         return;
