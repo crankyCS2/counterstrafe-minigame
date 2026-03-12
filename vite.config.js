@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 export default defineConfig({
-  base: '/counterstrafe-minigame/',
+  base: process.env.BASE_PATH || '/counterstrafe-minigame/',
   server: {
     port: 5173,
     open: true

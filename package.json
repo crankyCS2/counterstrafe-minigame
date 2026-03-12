@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:pages-subpath": "BASE_PATH=${BASE_PATH:?Set BASE_PATH like /your-pages-path/} vite build",
+    "build:pages:variants": "node scripts/build-pages-variants.mjs",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "deploy:pages-subpath": "npm run build:pages-subpath && gh-pages -d dist",
+    "deploy:pages:variants": "npm run build:pages:variants && node scripts/deploy-pages.mjs"
   },
   "keywords": [],
   "author": "",
