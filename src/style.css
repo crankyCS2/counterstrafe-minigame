@@ -165,8 +165,10 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:
 .sl-cfg-desc  { font-size:9px; color:var(--text-mid); line-height:1.6; }
 
 /* ── Custom radio buttons ── */
-.sl-dir-row { display:flex; gap:16px; }
-.custom-radio { display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none; }
+.sl-dir-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:8px;}
+.sl-dir-grid-center { width:100%; height:100%; border:1px solid transparent;}
+.sl-dr { width: 14px!important; height: 14px!important; margin-right: 2px; }
+.custom-radio { display:flex; align-items:center; gap:4px; font-size: 8px; cursor:pointer; user-select:none; }
 .custom-radio input[type=radio] { position:absolute; opacity:0; width:0; height:0; }
 
 /* The visible ring */
