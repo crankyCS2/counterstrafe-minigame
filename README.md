@@ -39,6 +39,27 @@ BASE_PATH=/your-pages-path/ npm run deploy:pages-subpath
 
 `build:pages-subpath` requires `BASE_PATH` and uses it for Vite's `base` so all asset URLs resolve correctly from that subpath.
 
+### Deploy both main + new-feature variants with a Pages landing page
+To publish both versions at once and expose links to each from the Pages root:
+
+```bash
+# optional overrides (defaults shown)
+MAIN_BASE_PATH=/counterstrafe-minigame/ FEATURE_BASE_PATH=/new-feature/ npm run deploy:pages:variants
+```
+
+This creates a `dist-pages/` bundle containing:
+- a root `index.html` with links to both deployments,
+- the main app at `MAIN_BASE_PATH`,
+- the feature app at `FEATURE_BASE_PATH`.
+
+Use `npm run build:pages:variants` if you only want to build locally without publishing.
+
+If your local clone does not have `origin` set, provide the publish repo explicitly:
+
+```bash
+GH_PAGES_REPO=https://github.com/<user>/<repo>.git npm run deploy:pages:variants
+```
+
 ---
 
 ## Architecture
