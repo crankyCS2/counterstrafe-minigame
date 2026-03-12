@@ -1,7 +1,9 @@
-import { InputState, IN_A, IN_D, IN_FIRE_LATCH } from './state.js';
+import { InputState, IN_A, IN_D, IN_W, IN_S, IN_FIRE_LATCH } from './state.js';
 import { initAudio } from './audio.js';
 
+const W_KEYS = new Set(['w', 'arrowup']);
 const A_KEYS = new Set(['a', 'arrowleft']);
+const S_KEYS = new Set(['s', 'arrowdown']);
 const D_KEYS = new Set(['d', 'arrowright']);
 
 export function initInput(canvasElement, refreshUI, fireCallback) {
@@ -12,8 +14,16 @@ export function initInput(canvasElement, refreshUI, fireCallback) {
         // Unlock AudioContext on first gesture
         initAudio();
 
-        if (A_KEYS.has(k)) {
+        if (W_KEYS.has(k)) {
+            InputState[IN_W] = 1;
+            refreshUI();
+            e.preventDefault();
+        } else if (A_KEYS.has(k)) {
             InputState[IN_A] = 1;
+            refreshUI();
+            e.preventDefault();
+        } else if (S_KEYS.has(k)) {
+            InputState[IN_S] = 1;
             refreshUI();
             e.preventDefault();
         } else if (D_KEYS.has(k)) {
@@ -29,7 +39,9 @@ export function initInput(canvasElement, refreshUI, fireCallback) {
 
     document.addEventListener('keyup', e => {
         const k = e.key.toLowerCase();
-        if (A_KEYS.has(k)) { InputState[IN_A] = 0; refreshUI(); e.preventDefault(); }
+        if (W_KEYS.has(k)) { InputState[IN_W] = 0; refreshUI(); e.preventDefault(); }
+        else if (A_KEYS.has(k)) { InputState[IN_A] = 0; refreshUI(); e.preventDefault(); }
+        else if (S_KEYS.has(k)) { InputState[IN_S] = 0; refreshUI(); e.preventDefault(); }
         else if (D_KEYS.has(k)) { InputState[IN_D] = 0; refreshUI(); e.preventDefault(); }
     });
 

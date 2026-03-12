@@ -2,7 +2,7 @@ import './style.css';
 import {
     recomputeBenchmarks, WEAPONS, STATE, MODE, TIMING,
     StrafeLab, MicroStrafe, RhythmState, SymmetryLog,
-    PlayerState, P_VELOCITY,
+    PlayerState, P_VELOCITY, P_VELOCITY_Y,
     MicroStrafeVisuals,
 } from './state.js';
 import { initInput }                              from './input.js';
@@ -82,15 +82,29 @@ async function boot() {
         if (isLab) exportLabCSV(); else exportHistoryCSV();
     });
 
+    // ── Dimension toggle ──
+    const dimTabs = document.querySelectorAll('.dim-tab');
+    dimTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            dimTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            STATE.mode2D = tab.dataset.dim === '2D';
+        });
+    });
+
     // ── Mode tabs ──
     const modeTabs = document.querySelectorAll('.mode-tab');
     modeTabs.forEach(tab => {
         tab.addEventListener('click', () => {
+            if (tab.id === 'dim-toggle') return;
+
             if (StrafeLab.active)   { stopStrafeLab(performance.now());   hideLabResults(); }
             if (MicroStrafe.active) { stopMicroStrafe(performance.now()); hideLabResults(); }
             if (RhythmState.active) { stopRhythm(); syncRhythmConfig(); }
 
-            modeTabs.forEach(t => t.classList.remove('active'));
+            modeTabs.forEach(t => {
+                if (t.id !== 'dim-toggle') t.classList.remove('active');
+            });
             tab.classList.add('active');
             STATE.currentMode = tab.dataset.mode;
 
@@ -395,6 +409,10 @@ function loop(ts) {
             const R = 40;
             MicroStrafeVisuals.x += PlayerState[P_VELOCITY] * dt * pxPerUnit;
             MicroStrafeVisuals.x  = Math.max(R + 8, Math.min(W - R - 8, MicroStrafeVisuals.x));
+            if (STATE.mode2D) {
+                MicroStrafeVisuals.y += PlayerState[P_VELOCITY_Y] * dt * pxPerUnit;
+                MicroStrafeVisuals.y  = Math.max(R + 8, Math.min(H - R - 8, MicroStrafeVisuals.y));
+            }
         }
     }
 

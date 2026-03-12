@@ -36,6 +36,11 @@ html, body { height:100%; overflow:hidden; background:var(--bg0); color:var(--te
 .mode-tab:hover  { border-color:var(--border); color:var(--text-mid); }
 .mode-tab.active { background:var(--bg2); border-color:var(--accent2); color:var(--accent); }
 
+.dim-tabs { display:flex; gap:4px; margin-right:8px; padding-right:8px; border-right:1px solid var(--border); align-items:center; }
+.dim-tab { background:transparent; color:var(--text-dim); border:1px solid transparent; font-family:inherit; font-size:8px; letter-spacing:1px; text-transform:uppercase; padding:3px 7px; border-radius:3px; cursor:pointer; outline:none; transition:all 80ms; white-space:nowrap; }
+.dim-tab:hover  { border-color:var(--border); color:var(--text-mid); }
+.dim-tab.active { background:var(--bg2); border-color:var(--accent2); color:var(--accent); }
+
 /* ── Lab progress bars ── */
 #sl-progress { padding:5px 16px; background:var(--bg1); border-bottom:1px solid var(--border); flex-shrink:0; display:none; flex-direction:column; gap:4px; }
 .sl-pb-row   { display:flex; align-items:center; gap:8px; }

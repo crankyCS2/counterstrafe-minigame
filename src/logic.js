@@ -1,8 +1,8 @@
 import {
     AttemptState, PlayerState, STATE, MODE, TTKState, TIMING,
-    A_ACTIVE, A_DIR, A_START_MS, A_PEAK_SPEED,
+    A_ACTIVE, A_DIR, A_DIR_Y, A_START_MS, A_PEAK_SPEED,
     A_GAP_MS, A_OVERLAP_MS, A_COUNTER_MS, A_STOPPED_MS, A_OVERSHOOT_INTEGRAL,
-    P_VELOCITY, P_PHASE, PHASE,
+    P_VELOCITY, P_VELOCITY_Y, P_PHASE, PHASE,
     HistoryFreestyle, HistoryTTK, SessionLogFreestyle, SessionLogTTK,
     HISTORY_MAX, Feedback, SymmetryLog, StrafeLab, MicroStrafe,
 } from './state.js';
@@ -25,7 +25,21 @@ function logSymmetry(speed) {
     const totalMs   = csMs + gapMs + overlapMs + stoppedMs;
     const oneAtTimePct = totalMs > 0 ? Math.round(csMs / totalMs * 100) : 0;
 
-    const side = AttemptState[A_DIR] < 0 ? SymmetryLog.left : SymmetryLog.right;
+    // Symmetry defaults to Left (-X) and Right (+X), or Up (-Y) and Down (+Y) if pure Y. 
+    // If movement is heavily diagonal, classify by primary lateral direction
+    const adx = Math.abs(AttemptState[A_DIR]);
+    const ady = Math.abs(AttemptState[A_DIR_Y]);
+
+    let isNegativePrimary = false;
+    if (ady > adx) {
+        // Vertical priority
+        isNegativePrimary = AttemptState[A_DIR_Y] < 0; // W
+    } else {
+        // Horizontal priority
+        isNegativePrimary = AttemptState[A_DIR] < 0; // A
+    }
+
+    const side = isNegativePrimary ? SymmetryLog.left : SymmetryLog.right;
     side.push({ speedAtShot: Math.round(speed), oneAtTimePct });
     if (side.length > SymmetryLog.MAX) side.shift();
 }
@@ -63,8 +77,10 @@ export function classify(speed, totalDecelMs) {
 export function updateTTK(now, dt) {
     if (STATE.currentMode !== MODE.TTK) return;
 
-    const phase  = PlayerState[P_PHASE];
-    const absSpd = Math.abs(PlayerState[P_VELOCITY]);
+    const phase = PlayerState[P_PHASE];
+    const vx = PlayerState[P_VELOCITY];
+    const vy = STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0;
+    const absSpd = Math.hypot(vx, vy);
 
     if (phase === PHASE.STRAFING && !TTKState.armed && !TTKState.cueVisible) {
         if (absSpd >= STATE.MIN_ATTEMPT_SPEED) {
@@ -95,7 +111,9 @@ export function resetTTK() {
 }
 
 export function fireShot(now, updateSidebarCallback) {
-    const speed     = Math.abs(PlayerState[P_VELOCITY]);
+    const vx = PlayerState[P_VELOCITY];
+    const vy = STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0;
+    const speed = Math.hypot(vx, vy);
     const isLabMode = STATE.currentMode === MODE.STRAFELAB || STATE.currentMode === MODE.MICROSTRAFE;
 
     // In lab modes we allow shooting at any speed / phase (the lab tracks it)

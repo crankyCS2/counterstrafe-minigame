@@ -2,9 +2,9 @@ import {
     HistoryFreestyle, HistoryTTK, SessionLogFreestyle, SessionLogTTK,
     SessionLogStrafeLab, SessionLogMicroStrafe,
     Feedback, STATE, PlayerState, MODE,
-    P_VELOCITY, P_PHASE,
+    P_VELOCITY, P_VELOCITY_Y, P_PHASE,
     StrafeLab, MicroStrafe, SymmetryLog, RhythmState,
-    InputState, IN_A, IN_D,
+    InputState, IN_A, IN_D, IN_W, IN_S,
     realisticTimeToReady,
 } from './state.js';
 import { PRESETS } from './rhythm.js';
@@ -153,22 +153,30 @@ export function updateSidebarLabMode(_rec) {
 }
 
 const PhaseNames = ['IDLE', 'STRAFING', 'DECELERATING'];
-let _keyA, _keyD;
+let _keyA, _keyD, _keyW, _keyS;
 function keyEls() {
     if (!_keyA) _keyA = document.querySelector('.key[data-k="A"]');
     if (!_keyD) _keyD = document.querySelector('.key[data-k="D"]');
-    return { keyA: _keyA, keyD: _keyD };
+    if (!_keyW) _keyW = document.querySelector('.key[data-k="W"]');
+    if (!_keyS) _keyS = document.querySelector('.key[data-k="S"]');
+    return { keyA: _keyA, keyD: _keyD, keyW: _keyW, keyS: _keyS };
 }
 
 export function updateLiveDOM() {
-    document.getElementById('lv-speed').textContent  = ~~Math.abs(PlayerState[P_VELOCITY]);
+    const vx = PlayerState[P_VELOCITY];
+    const vy = STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0;
+    const absSpd = Math.hypot(vx, vy);
+
+    document.getElementById('lv-speed').textContent  = ~~absSpd;
     document.getElementById('lv-phase').textContent  = PhaseNames[PlayerState[P_PHASE]];
     document.getElementById('hdr-phase').textContent = PhaseNames[PlayerState[P_PHASE]];
-    const { keyA, keyD } = keyEls();
+    const { keyA, keyD, keyW, keyS } = keyEls();
     if (keyA) keyA.classList.toggle('on', InputState[IN_A] === 1);
     if (keyD) keyD.classList.toggle('on', InputState[IN_D] === 1);
+    if (keyW) keyW.classList.toggle('on', InputState[IN_W] === 1);
+    if (keyS) keyS.classList.toggle('on', InputState[IN_S] === 1);
 
-    const pct = Math.abs(PlayerState[P_VELOCITY]) / STATE.WPN.maxSpeed * 50;
+    const pct = absSpd / STATE.WPN.maxSpeed * 50;
     if (PlayerState[P_VELOCITY] >= 0) {
         document.getElementById('velbar-right').style.width = pct + '%';
         document.getElementById('velbar-left').style.width  = '0%';
