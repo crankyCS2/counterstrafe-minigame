@@ -30,6 +30,15 @@ Generate a production-ready bundle in the `dist/` directory:
 npm run build
 ```
 
+### Build/Deploy for a different GitHub Pages subpath
+If you want this same app published under a different Pages path (for example `/your-pages-path/`), use:
+```bash
+BASE_PATH=/your-pages-path/ npm run build:pages-subpath
+BASE_PATH=/your-pages-path/ npm run deploy:pages-subpath
+```
+
+`build:pages-subpath` requires `BASE_PATH` and uses it for Vite's `base` so all asset URLs resolve correctly from that subpath.
+
 ---
 
 ## Architecture
