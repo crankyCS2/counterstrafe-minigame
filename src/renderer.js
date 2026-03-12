@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import {
-    STATE, PlayerState, P_VELOCITY, P_VISUAL_POS,
+    STATE, PlayerState, P_VELOCITY, P_VELOCITY_Y, P_VISUAL_POS, P_VISUAL_POS_Y,
     Feedback, TTKState, RhythmState, MODE,
     MicroStrafeVisuals,
 } from './state.js';
@@ -111,20 +111,75 @@ function lighten(colorNum, amt) {
 }
 
 // ── Tear-drop shape for freestyle/ttk ──
-function drawTearShape(g, cx, cy, R, vel) {
-    const absV = Math.abs(vel);
+function drawTearShape(g, cx, cy, R, vx, vy) {
+    const absV = Math.hypot(vx, vy);
     if (absV < 2) { g.circle(cx, cy, R); return; }
-    const t    = Math.pow(absV / STATE.WPN.maxSpeed, 0.58);
-    const dir  = vel > 0 ? 1 : -1;
-    const frontX = cx + dir * R * (1 + 0.60 * t);
-    const backX  = cx - dir * R * (1 - 0.10 * t);
-    const sX     = cx + dir * R * 0.02 * t;
-    const h      = R * (1 - 0.30 * t);
-    g.moveTo(frontX, cy);
-    g.bezierCurveTo(frontX, cy-h*.50, sX+dir*R*.38, cy-h, sX, cy-h);
-    g.bezierCurveTo(sX-dir*R*.52, cy-h, backX, cy-h*.18, backX, cy);
-    g.bezierCurveTo(backX, cy+h*.18, sX-dir*R*.52, cy+h, sX, cy+h);
-    g.bezierCurveTo(sX+dir*R*.38, cy+h, frontX, cy+h*.50, frontX, cy);
+    
+    // Calculate angle of movement
+    const angle = Math.atan2(vy, vx);
+
+    // Deformation amount based on speed
+    const t = Math.pow(absV / STATE.WPN.maxSpeed, 0.58);
+    
+    // Local coordinates (before rotation)
+    // Positive X is the direction of travel
+    const localFrontX = R * (1 + 0.60 * t);
+    const localBackX  = -R * (1 - 0.10 * t);
+    const localSX     = R * 0.02 * t;
+    const h           = R * (1 - 0.30 * t);
+    
+    // Rotate a local frame coordinate to global position
+    const rotX = (lx, ly) => cx + lx * Math.cos(angle) - ly * Math.sin(angle);
+    const rotY = (lx, ly) => cy + lx * Math.sin(angle) + ly * Math.cos(angle);
+
+    // Front tip
+    const frontX = rotX(localFrontX, 0);
+    const frontY = rotY(localFrontX, 0);
+
+    // Back end
+    const backX = rotX(localBackX, 0);
+    const backY = rotY(localBackX, 0);
+    
+    // Side points (top and bottom in local coords)
+    const topX = rotX(localSX, -h);
+    const topY = rotY(localSX, -h);
+    const botX = rotX(localSX, h);
+    const botY = rotY(localSX, h);
+
+    // Control points for bezier (local coordinates)
+    const cpFrontTopLx = localFrontX; const cpFrontTopLy = -h * 0.50;
+    const cpTopFrontLx = localSX + R * 0.38; const cpTopFrontLy = -h;
+    
+    const cpTopBackLx  = localSX - R * 0.52; const cpTopBackLy  = -h;
+    const cpBackTopLx  = localBackX;         const cpBackTopLy  = -h * 0.18;
+    
+    const cpBackBotLx  = localBackX;         const cpBackBotLy  = h * 0.18;
+    const cpBotBackLx  = localSX - R * 0.52; const cpBotBackLy  = h;
+    
+    const cpBotFrontLx = localSX + R * 0.38; const cpBotFrontLy = h;
+    const cpFrontBotLx = localFrontX;        const cpFrontBotLy = h * 0.50;
+
+    g.moveTo(frontX, frontY);
+    g.bezierCurveTo(
+        rotX(cpFrontTopLx, cpFrontTopLy), rotY(cpFrontTopLx, cpFrontTopLy), 
+        rotX(cpTopFrontLx, cpTopFrontLy), rotY(cpTopFrontLx, cpTopFrontLy), 
+        topX, topY
+    );
+    g.bezierCurveTo(
+        rotX(cpTopBackLx, cpTopBackLy), rotY(cpTopBackLx, cpTopBackLy), 
+        rotX(cpBackTopLx, cpBackTopLy), rotY(cpBackTopLx, cpBackTopLy), 
+        backX, backY
+    );
+    g.bezierCurveTo(
+        rotX(cpBackBotLx, cpBackBotLy), rotY(cpBackBotLx, cpBackBotLy), 
+        rotX(cpBotBackLx, cpBotBackLy), rotY(cpBotBackLx, cpBotBackLy), 
+        botX, botY
+    );
+    g.bezierCurveTo(
+        rotX(cpBotFrontLx, cpBotFrontLy), rotY(cpBotFrontLx, cpBotFrontLy), 
+        rotX(cpFrontBotLx, cpFrontBotLy), rotY(cpFrontBotLx, cpFrontBotLy), 
+        frontX, frontY
+    );
 }
 
 // ── Drag handle: 4-direction move icon ──
@@ -271,12 +326,16 @@ export function renderPixi(ts) {
         // ── Normal modes: velocity-displaced tear shape ──
         dragHintText.alpha = 0;
         const bx = cx + PlayerState[P_VISUAL_POS];
+        const by = cy + (STATE.mode2D ? PlayerState[P_VISUAL_POS_Y] : 0);
+
+        const vx = PlayerState[P_VELOCITY];
+        const vy = STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0;
 
         // Glow
-        drawTearShape(tearGraphics, bx, cy, R * 1.55, vel);
+        drawTearShape(tearGraphics, bx, by, R * 1.55, vx, vy);
         tearGraphics.fill({ color: col, alpha: 0.055 });
         // Body
-        drawTearShape(tearGraphics, bx, cy, R, vel);
+        drawTearShape(tearGraphics, bx, by, R, vx, vy);
         tearGraphics.fill({ color: col, alpha: 1.0 });
         tearGraphics.stroke({ width: 1.5, color: lighten(col, 0.32) });
     }
@@ -292,7 +351,7 @@ export function renderPixi(ts) {
             feedbackText.style.fill = parseInt(Feedback.color.replace('#','0x'));
             feedbackText.style.fontSize = isMicro ? 18 : 24;
             const fbx = isMicro ? (MicroStrafeVisuals.x ?? cx) : cx + PlayerState[P_VISUAL_POS];
-            const fby = isMicro ? (MicroStrafeVisuals.y ?? cy) : cy;
+            const fby = isMicro ? (MicroStrafeVisuals.y ?? cy) : cy + (STATE.mode2D ? PlayerState[P_VISUAL_POS_Y] : 0);
             feedbackText.x = fbx;
             feedbackText.y = fby - R * 2.3 - t * 28;
         } else {

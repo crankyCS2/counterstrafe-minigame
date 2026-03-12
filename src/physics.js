@@ -1,39 +1,64 @@
 import {
     SV, STATE, PlayerState, InputState, AttemptState, TIMING,
-    P_VELOCITY, P_VISUAL_POS, P_PHASE, PHASE,
-    IN_A, IN_D,
-    A_ACTIVE, A_DIR, A_START_MS, A_PEAK_SPEED,
+    P_VELOCITY, P_VELOCITY_Y, P_VISUAL_POS, P_VISUAL_POS_Y, P_PHASE, PHASE,
+    IN_A, IN_D, IN_W, IN_S,
+    A_ACTIVE, A_DIR, A_DIR_Y, A_START_MS, A_PEAK_SPEED,
     A_GAP_MS, A_OVERLAP_MS, A_COUNTER_MS, A_STOPPED_MS, A_OVERSHOOT_INTEGRAL,
 } from './state.js';
 import { abortAttempt }  from './logic.js';
 import { tickLabFrame }  from './strafelab.js';
 
 export function updatePhysics(dt, updateSidebarCallback) {
-    const prevVelocity = PlayerState[P_VELOCITY];
-    const prevAbsSpd   = Math.abs(prevVelocity);
+    let vx = PlayerState[P_VELOCITY];
+    let vy = STATE.mode2D ? PlayerState[P_VELOCITY_Y] : 0;
+    
+    const prevAbsSpd = Math.hypot(vx, vy);
 
     // ── Source Engine friction ──
-    if (Math.abs(PlayerState[P_VELOCITY]) > 0) {
-        const control  = Math.max(Math.abs(PlayerState[P_VELOCITY]), SV.stopspeed);
+    const speed = Math.hypot(vx, vy);
+    if (speed > 0) {
+        const control  = Math.max(speed, SV.stopspeed);
         const drop     = control * SV.friction * dt;
-        const newSpeed = Math.max(0, Math.abs(PlayerState[P_VELOCITY]) - drop);
-        PlayerState[P_VELOCITY] = newSpeed === 0
-            ? 0
-            : PlayerState[P_VELOCITY] * (newSpeed / Math.abs(PlayerState[P_VELOCITY]));
+        let newSpeed = Math.max(0, speed - drop);
+        
+        if (newSpeed !== speed) {
+            newSpeed /= speed;
+            vx *= newSpeed;
+            vy *= newSpeed;
+        }
     }
 
     // ── Source Engine acceleration ──
-    const wishdir = (InputState[IN_D] === 1 && InputState[IN_A] === 0) ?  1
-                  : (InputState[IN_A] === 1 && InputState[IN_D] === 0) ? -1 : 0;
-
-    if (wishdir !== 0) {
-        const speedInWish = PlayerState[P_VELOCITY] * wishdir;
-        let addspeed = SV.accelerate * STATE.WPN.maxSpeed * dt;
-        addspeed = Math.min(addspeed, STATE.WPN.maxSpeed - speedInWish);
-        if (addspeed > 0) PlayerState[P_VELOCITY] += wishdir * addspeed;
+    let wishdirX = (InputState[IN_D] === 1 && InputState[IN_A] === 0) ?  1
+                 : (InputState[IN_A] === 1 && InputState[IN_D] === 0) ? -1 : 0;
+    let wishdirY = 0;
+    
+    if (STATE.mode2D) {
+        wishdirY = (InputState[IN_S] === 1 && InputState[IN_W] === 0) ?  1
+                 : (InputState[IN_W] === 1 && InputState[IN_S] === 0) ? -1 : 0;
     }
 
-    const absSpd = Math.abs(PlayerState[P_VELOCITY]);
+    // Normalize wishdir if magnitude > 1
+    const wishdirMag = Math.hypot(wishdirX, wishdirY);
+    if (wishdirMag > 0) {
+        wishdirX /= wishdirMag;
+        wishdirY /= wishdirMag;
+        
+        const currentSpeedInWishDir = vx * wishdirX + vy * wishdirY;
+        const addSpeedCap = STATE.WPN.maxSpeed - currentSpeedInWishDir;
+        
+        if (addSpeedCap > 0) {
+            let accelSpeed = SV.accelerate * STATE.WPN.maxSpeed * dt;
+            accelSpeed = Math.min(accelSpeed, addSpeedCap);
+            vx += accelSpeed * wishdirX;
+            vy += accelSpeed * wishdirY;
+        }
+    }
+
+    PlayerState[P_VELOCITY] = vx;
+    if (STATE.mode2D) PlayerState[P_VELOCITY_Y] = vy;
+
+    const absSpd = Math.hypot(vx, vy);
 
     switch (PlayerState[P_PHASE]) {
         case PHASE.IDLE:
@@ -51,8 +76,17 @@ export function updatePhysics(dt, updateSidebarCallback) {
                 PlayerState[P_PHASE]              = PHASE.DECELERATING;
                 AttemptState[A_ACTIVE]            = 1;
                 AttemptState[A_START_MS]          = performance.now();
-                AttemptState[A_PEAK_SPEED]        = Math.abs(PlayerState[P_VELOCITY]);
-                AttemptState[A_DIR]               = Math.sign(PlayerState[P_VELOCITY]);
+                AttemptState[A_PEAK_SPEED]        = absSpd;
+                
+                // Direction of peak speed
+                if (absSpd > 0) {
+                    AttemptState[A_DIR]   = PlayerState[P_VELOCITY] / absSpd;
+                    AttemptState[A_DIR_Y] = STATE.mode2D ? (PlayerState[P_VELOCITY_Y] / absSpd) : 0;
+                } else {
+                    AttemptState[A_DIR] = 0;
+                    AttemptState[A_DIR_Y] = 0;
+                }
+                
                 AttemptState[A_GAP_MS]            = 0;
                 AttemptState[A_OVERLAP_MS]        = 0;
                 AttemptState[A_COUNTER_MS]        = 0;
@@ -66,18 +100,27 @@ export function updatePhysics(dt, updateSidebarCallback) {
                 PlayerState[P_PHASE] = PHASE.IDLE;
                 break;
             }
-            const frameMs        = dt * TIMING.MS_PER_SECOND;
-            const holdingOrig    = AttemptState[A_DIR] === -1 ? InputState[IN_A] === 1 : InputState[IN_D] === 1;
-            const holdingCounter = AttemptState[A_DIR] === -1 ? InputState[IN_D] === 1 : InputState[IN_A] === 1;
+            const frameMs = dt * TIMING.MS_PER_SECOND;
+            
+            // Recompute wishdir from inputs (no normalization needed for dot sign check)
+            let rawWishX = (InputState[IN_D] === 1 ? 1 : 0) - (InputState[IN_A] === 1 ? 1 : 0);
+            let rawWishY = STATE.mode2D ? ((InputState[IN_S] === 1 ? 1 : 0) - (InputState[IN_W] === 1 ? 1 : 0)) : 0;
+            
+            const dot = rawWishX * AttemptState[A_DIR] + rawWishY * AttemptState[A_DIR_Y];
 
             if (absSpd < 3) {
                 AttemptState[A_STOPPED_MS] += frameMs;
-            } else if (holdingOrig && holdingCounter) {
+            } else if (InputState[IN_W] + InputState[IN_A] + InputState[IN_S] + InputState[IN_D] > 1 && Math.abs(dot) < 0.1) {
+                // Holding multiple keys somewhat perpendicular (overlapping)
                 AttemptState[A_OVERLAP_MS] += frameMs;
-            } else if (!holdingOrig && !holdingCounter) {
+            } else if (rawWishX === 0 && rawWishY === 0) {
                 AttemptState[A_GAP_MS]     += frameMs;
-            } else if (holdingCounter && !holdingOrig) {
+            } else if (dot < -0.1) {
                 AttemptState[A_COUNTER_MS] += frameMs;
+            } else if (dot > 0.1) {
+                AttemptState[A_OVERLAP_MS] += frameMs; // Holding forward again/overlap
+            } else {
+                AttemptState[A_OVERLAP_MS] += frameMs;
             }
 
             if (absSpd > STATE.ACCURATE_THRESH) {
@@ -97,11 +140,14 @@ export function updatePhysics(dt, updateSidebarCallback) {
         AttemptState[A_PEAK_SPEED] = Math.max(AttemptState[A_PEAK_SPEED], absSpd);
     }
 
-    // Lab mode per-frame metrics
-    tickLabFrame(dt, PlayerState[P_VELOCITY]);
+    // Lab mode per-frame metrics - uses true 2D velocity
+    tickLabFrame(dt, vx, vy);
 
     // Visual smoothing
     const MAX_DISP = 148;
-    const target   = (PlayerState[P_VELOCITY] / STATE.WPN.maxSpeed) * MAX_DISP;
-    PlayerState[P_VISUAL_POS] += (target - PlayerState[P_VISUAL_POS]) * Math.min(1, 9 * dt);
+    const targetX = (PlayerState[P_VELOCITY] / STATE.WPN.maxSpeed) * MAX_DISP;
+    const targetY = STATE.mode2D ? ((PlayerState[P_VELOCITY_Y] / STATE.WPN.maxSpeed) * MAX_DISP) : 0;
+    
+    PlayerState[P_VISUAL_POS] += (targetX - PlayerState[P_VISUAL_POS]) * Math.min(1, 9 * dt);
+    PlayerState[P_VISUAL_POS_Y] += (targetY - PlayerState[P_VISUAL_POS_Y]) * Math.min(1, 9 * dt);
 }

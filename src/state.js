@@ -42,6 +42,7 @@ export const STATE = {
     COAST_MS: 0,
     CS_MS: 0,
     currentMode: MODE.FREESTYLE,
+    mode2D: false,
 };
 
 // TTK mode state
@@ -58,28 +59,33 @@ export const PHASE = { IDLE: 0, STRAFING: 1, DECELERATING: 2 };
 
 // ── PlayerState ──
 export const P_VELOCITY   = 0;
-export const P_VISUAL_POS = 1;
-export const P_PHASE      = 2;
-export const PlayerState  = new Float32Array(3);
+export const P_VELOCITY_Y = 1;
+export const P_VISUAL_POS = 2; // X
+export const P_VISUAL_POS_Y = 3;
+export const P_PHASE      = 4;
+export const PlayerState  = new Float32Array(5);
 PlayerState[P_PHASE] = PHASE.IDLE;
 
 // ── InputState ──
 export const IN_A          = 0;
 export const IN_D          = 1;
-export const IN_FIRE_LATCH = 2;
-export const InputState    = new Uint8Array(3);
+export const IN_W          = 2;
+export const IN_S          = 3;
+export const IN_FIRE_LATCH = 4;
+export const InputState    = new Uint8Array(5);
 
 // ── AttemptState ──
 export const A_ACTIVE             = 0;
 export const A_START_MS           = 1;
 export const A_PEAK_SPEED         = 2;
-export const A_DIR                = 3;
-export const A_GAP_MS             = 4;
-export const A_OVERLAP_MS         = 5;
-export const A_COUNTER_MS         = 6;
-export const A_STOPPED_MS         = 7;
-export const A_OVERSHOOT_INTEGRAL = 8;
-export const AttemptState         = new Float64Array(9);
+export const A_DIR                = 3; // X dir (legacy) or 2D dir X
+export const A_DIR_Y              = 4;
+export const A_GAP_MS             = 5;
+export const A_OVERLAP_MS         = 6;
+export const A_COUNTER_MS         = 7;
+export const A_STOPPED_MS         = 8;
+export const A_OVERSHOOT_INTEGRAL = 9;
+export const AttemptState         = new Float64Array(10);
 
 export const HISTORY_MAX      = 50;
 export const HistoryFreestyle = [];

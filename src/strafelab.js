@@ -131,13 +131,21 @@ function computeMicroResults(now, completed) {
 //  PER-FRAME TICK  (called from physics.js for whichever lab is active)
 // ===========================================================================
 
-export function tickLabFrame(dt, velocity) {
+export function tickLabFrame(dt, vx, vy) {
     const lab = StrafeLab.active ? StrafeLab : MicroStrafe.active ? MicroStrafe : null;
     if (!lab) return;
 
-    const absV       = Math.abs(velocity);
+    const absV       = Math.hypot(vx, vy);
     const frameMs    = dt * 1000;
-    const curSign    = Math.sign(velocity);
+    
+    // Check direction based on the current mode and dominant velocity
+    let curSign = 0;
+    if (Math.abs(vx) > Math.abs(vy) || !STATE.mode2D) {
+        curSign = Math.sign(vx);
+    } else {
+        curSign = Math.sign(vy); // Primary vertical progression
+    }
+
     const targetSign = lab.direction === 'right' ? 1 : -1;
 
     // Accumulate distance only in target direction, any speed
