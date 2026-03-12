@@ -85,7 +85,11 @@ export const A_OVERLAP_MS         = 6;
 export const A_COUNTER_MS         = 7;
 export const A_STOPPED_MS         = 8;
 export const A_OVERSHOOT_INTEGRAL = 9;
-export const AttemptState         = new Float64Array(10);
+export const A_GAP_X_MS           = 10;
+export const A_GAP_Y_MS           = 11;
+export const A_OVERLAP_X_MS       = 12;
+export const A_OVERLAP_Y_MS       = 13;
+export const AttemptState         = new Float64Array(14);
 
 export const HISTORY_MAX      = 50;
 export const HistoryFreestyle = [];

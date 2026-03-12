@@ -2,6 +2,7 @@ import {
     AttemptState, PlayerState, STATE, MODE, TTKState, TIMING,
     A_ACTIVE, A_DIR, A_DIR_Y, A_START_MS, A_PEAK_SPEED,
     A_GAP_MS, A_OVERLAP_MS, A_COUNTER_MS, A_STOPPED_MS, A_OVERSHOOT_INTEGRAL,
+    A_GAP_X_MS, A_GAP_Y_MS, A_OVERLAP_X_MS, A_OVERLAP_Y_MS,
     P_VELOCITY, P_VELOCITY_Y, P_PHASE, PHASE,
     HistoryFreestyle, HistoryTTK, SessionLogFreestyle, SessionLogTTK,
     HISTORY_MAX, Feedback, SymmetryLog, StrafeLab, MicroStrafe,
@@ -50,6 +51,10 @@ function getAttemptData() {
         gapMs:     Math.round(AttemptState[A_GAP_MS]),
         overlapMs: Math.round(AttemptState[A_OVERLAP_MS]),
         stoppedMs: Math.round(AttemptState[A_STOPPED_MS]),
+        gapXMs:    Math.round(AttemptState[A_GAP_X_MS]),
+        gapYMs:    Math.round(AttemptState[A_GAP_Y_MS]),
+        overlapXMs: Math.round(AttemptState[A_OVERLAP_X_MS]),
+        overlapYMs: Math.round(AttemptState[A_OVERLAP_Y_MS]),
     };
 }
 
@@ -135,6 +140,7 @@ export function fireShot(now, updateSidebarCallback) {
             color: '#ef4444', isSuccess: false, isAttempt: true, isFalseStart: true,
             speed: Math.round(speed), totalDecelMs: 0,
             csMs: 0, gapMs: 0, overlapMs: 0, stoppedMs: 0,
+            gapXMs: 0, gapYMs: 0, overlapXMs: 0, overlapYMs: 0,
             coastMs: Math.round(STATE.COAST_MS), ttsMs: 0, weapon: STATE.WPN.id,
         };
         history.unshift(falseRec);
@@ -190,6 +196,10 @@ export function fireShot(now, updateSidebarCallback) {
         gapMs:        AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_GAP_MS])     : 0,
         overlapMs:    AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_OVERLAP_MS]) : 0,
         stoppedMs:    AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_STOPPED_MS]) : 0,
+        gapXMs:       AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_GAP_X_MS]) : 0,
+        gapYMs:       AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_GAP_Y_MS]) : 0,
+        overlapXMs:   AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_OVERLAP_X_MS]) : 0,
+        overlapYMs:   AttemptState[A_ACTIVE] === 1 ? Math.round(AttemptState[A_OVERLAP_Y_MS]) : 0,
         coastMs:      Math.round(STATE.COAST_MS),
         ttsMs,
         weapon:       STATE.WPN.id,
@@ -241,6 +251,10 @@ export function abortAttempt(now, speed, updateSidebarCallback) {
         gapMs:        Math.round(AttemptState[A_GAP_MS]),
         overlapMs:    Math.round(AttemptState[A_OVERLAP_MS]),
         stoppedMs:    Math.round(AttemptState[A_STOPPED_MS]),
+        gapXMs:       Math.round(AttemptState[A_GAP_X_MS]),
+        gapYMs:       Math.round(AttemptState[A_GAP_Y_MS]),
+        overlapXMs:   Math.round(AttemptState[A_OVERLAP_X_MS]),
+        overlapYMs:   Math.round(AttemptState[A_OVERLAP_Y_MS]),
         coastMs:      Math.round(STATE.COAST_MS),
         isAbort:      true,
         ttsMs:        0,

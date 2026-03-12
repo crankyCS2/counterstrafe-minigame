@@ -4,6 +4,7 @@ import {
     IN_A, IN_D, IN_W, IN_S,
     A_ACTIVE, A_DIR, A_DIR_Y, A_START_MS, A_PEAK_SPEED,
     A_GAP_MS, A_OVERLAP_MS, A_COUNTER_MS, A_STOPPED_MS, A_OVERSHOOT_INTEGRAL,
+    A_GAP_X_MS, A_GAP_Y_MS, A_OVERLAP_X_MS, A_OVERLAP_Y_MS,
 } from './state.js';
 import { abortAttempt }  from './logic.js';
 import { tickLabFrame }  from './strafelab.js';
@@ -87,11 +88,15 @@ export function updatePhysics(dt, updateSidebarCallback) {
                     AttemptState[A_DIR_Y] = 0;
                 }
                 
-                AttemptState[A_GAP_MS]            = 0;
-                AttemptState[A_OVERLAP_MS]        = 0;
-                AttemptState[A_COUNTER_MS]        = 0;
-                AttemptState[A_STOPPED_MS]        = 0;
+                AttemptState[A_GAP_MS]             = 0;
+                AttemptState[A_OVERLAP_MS]         = 0;
+                AttemptState[A_COUNTER_MS]         = 0;
+                AttemptState[A_STOPPED_MS]         = 0;
                 AttemptState[A_OVERSHOOT_INTEGRAL] = 0;
+                AttemptState[A_GAP_X_MS]           = 0;
+                AttemptState[A_GAP_Y_MS]           = 0;
+                AttemptState[A_OVERLAP_X_MS]       = 0;
+                AttemptState[A_OVERLAP_Y_MS]       = 0;
             }
             break;
 
@@ -108,9 +113,28 @@ export function updatePhysics(dt, updateSidebarCallback) {
             
             const dot = rawWishX * AttemptState[A_DIR] + rawWishY * AttemptState[A_DIR_Y];
 
+            // Axis-specific overlap/gap breakdown (for diagnostics in 2D drills)
+            const dirX = AttemptState[A_DIR];
+            const dirY = AttemptState[A_DIR_Y];
+            const relX = Math.abs(dirX) > 0.05;
+            const relY = STATE.mode2D && Math.abs(dirY) > 0.05;
+
+            if (relX) {
+                if (rawWishX === 0) AttemptState[A_GAP_X_MS] += frameMs;
+                else if (Math.sign(rawWishX) === Math.sign(dirX)) AttemptState[A_OVERLAP_X_MS] += frameMs;
+            }
+            if (relY) {
+                if (rawWishY === 0) AttemptState[A_GAP_Y_MS] += frameMs;
+                else if (Math.sign(rawWishY) === Math.sign(dirY)) AttemptState[A_OVERLAP_Y_MS] += frameMs;
+            }
+
+            const activeMoveKeys = STATE.mode2D
+                ? (InputState[IN_W] + InputState[IN_A] + InputState[IN_S] + InputState[IN_D])
+                : (InputState[IN_A] + InputState[IN_D]);
+
             if (absSpd < 3) {
                 AttemptState[A_STOPPED_MS] += frameMs;
-            } else if (InputState[IN_W] + InputState[IN_A] + InputState[IN_S] + InputState[IN_D] > 1 && Math.abs(dot) < 0.1) {
+            } else if (activeMoveKeys > 1 && Math.abs(dot) < 0.1) {
                 // Holding multiple keys somewhat perpendicular (overlapping)
                 AttemptState[A_OVERLAP_MS] += frameMs;
             } else if (rawWishX === 0 && rawWishY === 0) {

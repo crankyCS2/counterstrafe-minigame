@@ -92,7 +92,11 @@ function buildRow(rec) {
     if (rec.totalDecelMs > 0) det.push('decel ' + rec.totalDecelMs + 'ms');
     if (rec.csMs      > 0) det.push('CS '   + rec.csMs      + 'ms');
     if (rec.gapMs     > 0) det.push('gap '  + rec.gapMs     + 'ms');
+    if ((rec.gapXMs || 0) > 0) det.push('gap X ' + rec.gapXMs + 'ms');
+    if ((rec.gapYMs || 0) > 0) det.push('gap Y ' + rec.gapYMs + 'ms');
     if (rec.overlapMs > 0) det.push('ovlp ' + rec.overlapMs + 'ms');
+    if ((rec.overlapXMs || 0) > 0) det.push('ovlp X ' + rec.overlapXMs + 'ms');
+    if ((rec.overlapYMs || 0) > 0) det.push('ovlp Y ' + rec.overlapYMs + 'ms');
     if (rec.stoppedMs > 0) det.push('wait ' + rec.stoppedMs + 'ms');
     const detHtml  = det.map(d => `<span>${d}</span>`).join('');
     const barStyle = rec.isAttempt && rec.totalDecelMs > 0
@@ -495,11 +499,12 @@ export function exportHistoryCSV() {
     if (session.length === 0) return;
     const modeName = STATE.currentMode === MODE.TTK ? 'TTK' : 'Freestyle';
     let csv = 'data:text/csv;charset=utf-8,';
-    csv += 'Timestamp,ShotNumber,Mode,Result,Weapon,Speed,TotalDecelMs,CounterStrafeMs,GapMs,OverlapMs,WaitMs,MaxSpeed,CoastMs,TimeToShotMs\n';
+    csv += 'Timestamp,ShotNumber,Mode,Result,Weapon,Speed,TotalDecelMs,CounterStrafeMs,GapMs,GapXMs,GapYMs,OverlapMs,OverlapXMs,OverlapYMs,WaitMs,MaxSpeed,CoastMs,TimeToShotMs\n';
     session.forEach(h => {
         csv += [
             h.timestamp || '', h.n, modeName, h.result, h.weapon || STATE.WPN.id,
-            h.speed, h.totalDecelMs, h.csMs, h.gapMs, h.overlapMs, h.stoppedMs,
+            h.speed, h.totalDecelMs, h.csMs, h.gapMs, h.gapXMs || 0, h.gapYMs || 0,
+            h.overlapMs, h.overlapXMs || 0, h.overlapYMs || 0, h.stoppedMs,
             h.maxSpeed || STATE.WPN.maxSpeed, h.coastMs, h.ttsMs || 0,
         ].join(',') + '\n';
     });
