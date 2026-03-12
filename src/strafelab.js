@@ -34,8 +34,7 @@ function computeBaseResults(lab, now, completed) {
         ? Math.round(shots.filter(s => s.wasAccurate).length / nShots * 100)
         : null;
 
-    // Avg speed at shot — report as distance from threshold (+ = above, − = below)
-    // "Closer to threshold" means closer to 0 on this scale
+    // Avg speed at shot (raw u/s). Can be compared against ACCURATE_THRESH later.
     const avgSpeedAtShot = nShots > 0
         ? Math.round(shots.reduce((a, s) => a + s.speed, 0) / nShots)
         : null;
@@ -51,6 +50,7 @@ function computeBaseResults(lab, now, completed) {
     }
 
     return {
+        timestamp:      new Date(lab.startMs + timeMs).toISOString(),
         completed,
         timeMs,
         quotaUnits:     lab.quotaUnits,

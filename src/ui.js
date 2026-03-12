@@ -259,17 +259,17 @@ export function updateLabProgressUI() {
     if (shotsRow) {
         if (lab.quotaShots > 0) {
             shotsRow.style.display = 'flex';
-            const sPct = Math.min(1, lab.shotEvents.length / lab.quotaShots) * 100;
+            const accurate = lab.shotEvents.filter(s => s.wasAccurate).length;
+            const sPct = Math.min(1, accurate / lab.quotaShots) * 100;
             const sBar = document.getElementById('sl-pb-shots');
             const sTxt = document.getElementById('sl-pb-shots-text');
-            // colour shots bar by accuracy
-            const accurate = lab.shotEvents.filter(s => s.wasAccurate).length;
+            // colour shots bar by overall accuracy
             const accPct   = lab.shotEvents.length ? Math.round(accurate / lab.shotEvents.length * 100) : 0;
             if (sBar) {
                 sBar.style.width = sPct + '%';
                 sBar.style.background = accPct >= 80 ? 'var(--green)' : accPct >= 50 ? 'var(--yellow)' : 'var(--red)';
             }
-            if (sTxt) sTxt.textContent = lab.shotEvents.length + ' / ' + lab.quotaShots + ' (' + accPct + '% acc)';
+            if (sTxt) sTxt.textContent = accurate + ' / ' + lab.quotaShots + ' (' + lab.shotEvents.length + ' total)';
         } else {
             shotsRow.style.display = 'none';
         }
@@ -500,7 +500,7 @@ export function exportHistoryCSV() {
         csv += [
             h.timestamp || '', h.n, modeName, h.result, h.weapon || STATE.WPN.id,
             h.speed, h.totalDecelMs, h.csMs, h.gapMs, h.overlapMs, h.stoppedMs,
-            STATE.WPN.maxSpeed, h.coastMs, h.ttsMs || 0,
+            h.maxSpeed || STATE.WPN.maxSpeed, h.coastMs, h.ttsMs || 0,
         ].join(',') + '\n';
     });
     const link = document.createElement('a');
