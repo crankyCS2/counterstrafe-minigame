@@ -50,7 +50,7 @@ jobs:
         run: npm run build
         working-directory: main-src
         env:
-          VITE_BASE: /counterstrafe-minigame/
+          VITE_BASE: /counterstrafe-minigame/main/
 
       # --- Build 2d-movement branch ---
       - name: Install dependencies (2d)
@@ -66,9 +66,14 @@ jobs:
       # --- Merge into single site directory ---
       - name: Assemble site
         run: |
+          mkdir -p site/main
           mkdir -p site/2d
-          cp -r main-src/dist/* site/
+          # Main build to /main/
+          cp -r main-src/dist/* site/main/
+          # 2D build to /2d/
           cp -r 2d-src/dist/* site/2d/
+          # Landing page to root
+          cp 2d-src/public/landing.html site/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
